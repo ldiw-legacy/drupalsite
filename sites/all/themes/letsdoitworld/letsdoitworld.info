@@ -1,0 +1,18 @@
+name = Letsdoitworld theme
+description = New theme for 2012
+version = 6.x
+core = 6.x
+engine = phptemplate
+
+stylesheets[all][] = gfx/reset.css
+stylesheets[all][] = gfx/styles.css
+
+regions[admin_menu]  = Admin menu
+regions[left]  = Sidebar Left
+regions[front_1]  = Frontpage content block 1
+regions[front_2]  = Frontpage content block 2
+regions[front_3]  = Frontpage content block 3
+regions[footer_block_2]  = Footer
+regions[content_1]  = Content block 1
+regions[content_before]  = Block before content
+regions[content_after]  = Block after content

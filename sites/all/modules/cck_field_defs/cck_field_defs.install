@@ -1,0 +1,25 @@
+<?php
+
+function cck_field_defs_install() {
+  // Set variables to be used by this module.
+  variable_set('cck_field_defs_title', 'Data dictionary');
+  variable_set('cck_field_defs_label', 0);
+  variable_set('cck_field_defs_desc', 1);
+  variable_set('cck_field_defs_collapse', 1);
+  
+  // Clear caches to take into account the changes immediately.
+  cache_clear_all('content_type_info', 'cache_content');
+  menu_cache_clear_all();
+}
+
+function cck_field_defs_uninstall() {
+  // Remove variables set by this module.
+  variable_del('cck_field_defs_title');
+  variable_del('cck_field_defs_label');
+  variable_del('cck_field_defs_desc');
+  variable_del('cck_field_defs_collapse');
+  
+  // Clear caches to take into account the changes immediately.
+  cache_clear_all('content_type_info', 'cache_content');
+  menu_cache_clear_all();
+}

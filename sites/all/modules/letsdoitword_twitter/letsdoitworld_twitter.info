@@ -1,0 +1,4 @@
+name = Letsdoitworld Twitter block
+description = Letsdoitworld Twitter integration
+core = 6.x
+dependencies[] = twitter_pull

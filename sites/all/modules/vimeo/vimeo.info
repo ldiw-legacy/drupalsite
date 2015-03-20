@@ -1,0 +1,15 @@
+; $Id: vimeo.info,v 1.1.2.1 2010/02/09 00:23:50 starnox Exp $
+name = Vimeo
+description = A CCK field for Vimeo videos complete with easy-to-use browser.
+dependencies[] = content
+dependencies[] = imageapi
+dependencies[] = imagecache
+dependencies[] = jquery_ui
+package = CCK
+core = 6.x
+; Information added by drupal.org packaging script on 2010-12-07
+version = "6.x-1.0-beta1"
+core = "6.x"
+project = "vimeo"
+datestamp = "1291765846"
+

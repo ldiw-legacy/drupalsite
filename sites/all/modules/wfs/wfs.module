@@ -1,0 +1,139 @@
+<?php
+// $Id: wfs.module,v 1.4.2.11 2010/05/17 21:37:12 tmcw Exp $
+
+
+/**
+ * @file
+ * WFS module.
+ */
+
+/**
+ * Implementation of hook_views_api().
+ */
+function wfs_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'wfs') .'/views',
+  );
+}
+
+/**
+ * Implementation of hook_ctools_plugin_api().
+ */
+function wfs_ctools_plugin_api($module, $api) {
+  if ($module == "openlayers") {
+    switch ($api) {
+      case 'openlayers_layers':
+        return array('version' => 1);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_openlayers_behaviors()
+ */
+function wfs_openlayers_behaviors() {
+  return array(
+    'wfs_behavior_virtualhover' => array(
+      'title' => t('Virtual Hover'),
+      'description' => t('Allows interaction with rendered raster points by 
+        simulating the behavior of dynamic points'),
+      'type' => 'layer',
+      'path' => drupal_get_path('module', 'wfs') .'/includes/behaviors',
+      'file' => 'wfs_behavior_virtualhover.inc',
+      'behavior' => array(
+        'class' => 'wfs_behavior_virtualhover',
+        'parent' => 'openlayers_behavior',
+      ),
+    ),
+    'wfs_behavior_virtualclick' => array(
+      'title' => t('Virtual Click'),
+      'description' => t('Allows interaction with rendered raster points by 
+        simulating the behavior of dynamic points'),
+      'type' => 'layer',
+      'path' => drupal_get_path('module', 'wfs') .'/includes/behaviors',
+      'file' => 'wfs_behavior_virtualclick.inc',
+      'behavior' => array(
+        'class' => 'wfs_behavior_virtualclick',
+        'parent' => 'openlayers_behavior',
+      ),
+    )
+  );
+}
+
+/**
+ * Implementation of hook_openlayers_layer_types()
+ */
+function wfs_openlayers_layer_types() {
+  return array(
+    'wfs_layer_type_virtualvector' => array(
+      'title' => t('VirtualVector'),
+      'description' => t('A Vector (WFS or KML) map that does not
+        render features but tracks them for interaction with VirtualHover.'),
+      'layer_type' => array(
+        'path' => drupal_get_path('module', 'wfs') .'/includes/layer_types',
+        'file' => 'virtualvector.inc',
+        'class' => 'wfs_layer_type_virtualvector',
+        'parent' => 'openlayers_layer_type',
+      ),
+    )
+  );
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function wfs_theme() {
+  $path = drupal_get_path('module', 'wfs');
+  return array(
+    'wfs_placemark' => array(
+      'arguments' => array(
+        'point' => array(),
+        'feature_type' => ''),
+      'file' => 'wfs_views.theme.inc',
+      'template' => 'wfs-placemark',
+      'path' => $path . "/views",
+    ),
+    'wfs_placemark_geometry' => array(
+      'arguments' => array(
+        'point' => array(),
+        'feature_type' => ''),
+      'file' => 'wfs_views.theme.inc',
+      'template' => 'wfs-placemark-geometry',
+      'path' => $path . "/views",
+    ),
+    'wfs_getcapabilities' => array(
+      'arguments' => array(
+        'view_url' => '',
+        'feature_types' => array(),
+        'site_name' => ''),
+      'file' => 'wfs_views.theme.inc',
+      'template' => 'wfs-getcapabilities',
+      'path' => $path . "/views",
+    ),
+    'wfs_describefeaturetype' => array(
+      'arguments' => array(
+        'feature_type' => '', 
+        'field_names' => array()),
+      'file' => 'wfs_views.theme.inc',
+      'template' => 'wfs-describefeaturetype',
+      'path' => $path . '/views',
+    ),
+    'wfs_describefeaturetype_geometry' => array(
+      'arguments' => array(
+        'feature_type' => '', 
+        'field_names' => array()),
+      'file' => 'wfs_views.theme.inc',
+      'template' => 'wfs-describefeaturetype-geometry',
+      'path' => $path . '/views',
+    ),
+    'wfs_exception' => array(
+      'arguments' => array(
+        'exceptionCode' => '', 
+        'exceptionText' => array()),
+      'file' => 'wfs_views.theme.inc',
+      'template' => 'wfs-exception',
+      'path' => $path . '/views',
+    ),
+  );
+}

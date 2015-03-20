@@ -1,0 +1,383 @@
+<?php
+
+/**
+ * @file
+ * Core functions.
+ *
+ * @todo Double-check potential performance issues mentioned in code comments.
+ */
+
+/**
+ * Implementation of hook_field_info().
+ */
+function viewfield_field_info() {
+  return array(
+    'viewfield' => array(
+      // Should be "View", but that would translate into "view" (show) for many
+      // languages due to missing string translation contexts.
+      'label' => t('Views'),
+      'description' => t('Displays a selected view in a node.'),
+      'callbacks' => array(
+        'tables' => CONTENT_CALLBACK_NONE,
+        'arguments' => CONTENT_CALLBACK_NONE,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_settings().
+ */
+function viewfield_field_settings($op, $field) {
+  switch ($op) {
+    case 'form':
+      $form['allowed_views'] = array(
+        '#type' => 'checkboxes',
+        '#title' => t('Allowed values'),
+        '#default_value' => is_array($field['allowed_views']) ? $field['allowed_views'] : array(),
+        '#options' => drupal_map_assoc(array_keys(views_get_all_views())),
+        '#description' => t('Only selected views will be available for content authors. Leave empty to allow all.'),
+      );
+      return $form;
+
+    case 'validate':
+      if ($field['force_default'] && $field['multiple']) {
+        form_set_error('multiple', t('Multiple views are not supported if force default is enabled.'));
+      }
+      break;
+
+    case 'save':
+      return array(
+        'allowed_views',
+      );
+
+    case 'database columns':
+      return array(
+        // Views requires at least 96 chars for the view name and display, plus
+        // we need 1 for our delimiter. Round up to a common value of 128.
+        'vname' => array('type' => 'varchar', 'not null' => FALSE, 'length' => 128),
+        'vargs' => array('type' => 'varchar', 'not null' => FALSE, 'length' => 255),
+      );
+  }
+}
+
+/**
+ * Implementation of hook_field().
+ */
+function viewfield_field($op, &$node, $field, &$items, $teaser, $page) {
+  switch ($op) {
+    case 'presave':
+      foreach ($items as $delta => $item) {
+        if (empty($item['vname'])) {
+          unset($items[$delta]);
+        }
+      }
+      break;
+
+    case 'sanitize':
+      // Replace field values with widget defaults when force_default is set.
+      if ($field['widget']['force_default']) {
+        $items = $field['widget']['default_value'];
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_content_is_empty().
+ */
+function viewfield_content_is_empty($item, $field) {
+  return empty($item['vname']);
+}
+
+/**
+ * Implementation of hook_field_formatter_info().
+ */
+function viewfield_field_formatter_info() {
+  return array(
+    'default' => array(
+      'label' => t('Default'),
+      'field types' => array('viewfield')
+    ),
+  );
+}
+
+/**
+ * Return a themed view avoiding viewfield recursion.
+ */
+function theme_viewfield_formatter_default($element) {
+  // $_viewfield_stack keeps a record of the current node to prevent infinite
+  // recursion during the view rendering process.
+  global $_viewfield_stack;
+
+  $node = $element['#node'];
+
+  if (!empty($element['#item']['vname']) && !isset($_viewfield_stack[$node->nid])) {
+    // Push id of current node unless it's a new node being previewed.
+    if ($node->nid) {
+      $_viewfield_stack[$node->nid] = $node->nid;
+    }
+
+    list($view_name, $display) = explode('|', $element['#item']['vname'], 2);
+    $view_args = _viewfield_get_view_args($element['#item']['vargs'], $element['#node']);
+
+
+    // Render the view like Views would do.
+    // @see views_embed_view()
+    $view = views_get_view($view_name);
+    if ($view && $view->access($display)) {
+      // Override the view's path to the current path. Otherwise, exposed views
+      // filters would submit to the front page.
+      $view->override_path = $_GET['q'];
+
+      $output = $view->preview($display, $view_args);
+    }
+
+    // This node is "safe" again.
+    if ($node->nid) {
+      unset($_viewfield_stack[$node->nid]);
+    }
+
+    // Only return an actual view result to not break empty value behavior.
+    if (isset($output)) {
+      return $output;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_widget_info().
+ */
+function viewfield_widget_info() {
+  return array(
+    'viewfield_select' => array(
+      'label' => 'Select List',
+      'field types' => array('viewfield'),
+      'multiple_values' => CONTENT_HANDLE_CORE,
+      'callbacks' => array(
+        'default value' => CONTENT_CALLBACK_DEFAULT,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_widget_settings().
+ */
+function viewfield_widget_settings($op, $widget) {
+  switch ($op) {
+    case 'form':
+      $form['force_default'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Always use default value'),
+        '#default_value' => $widget['force_default'],
+        '#description' => t('Hides this field in forms and forces the default value defined below.'),
+      );
+      return $form;
+
+    case 'save':
+      return array(
+        'force_default',
+      );
+  }
+}
+
+/**
+ * Implementation of hook_widget().
+ */
+function viewfield_widget(&$form, &$form_state, $field, $items, $delta = 0) {
+  $element = array(
+    '#type' => $field['widget']['type'],
+    '#default_value' => isset($items[$delta]) ? $items[$delta] : NULL,
+  );
+
+  return $element;
+}
+
+/**
+ * Implementation of FAPI hook_elements().
+ */
+function viewfield_elements() {
+  return array(
+    'viewfield_select' => array(
+      '#input' => TRUE,
+      '#columns' => array('vname', 'vargs'),
+      '#delta' => 0,
+      '#process' => array('viewfield_select_process'),
+    ),
+  );
+}
+
+function viewfield_select_process($element, $edit, $form_state, $form) {
+  // This form is used for both the default value field in the admin as well as
+  // the node edit form, so we have to make sure we show the default value field
+  // always.
+  $is_field_settings_form = !isset($form['#node']);
+
+  $field = isset($form['#field_info'][$element['#field_name']]) ? $form['#field_info'][$element['#field_name']] : NULL;
+  $element['#field'] = $field;
+  // Display the form to let the user pick a view.
+  $options = _viewfield_potential_references($field, $element['#delta']);
+  $element['vname'] = array(
+    '#type' => 'select',
+    '#title' => $element['#title'],
+    '#options' => $options,
+    '#default_value' => isset($element['#default_value']['vname']) ? $element['#default_value']['vname'] : NULL,
+    '#required' => $element['#required'],
+    '#access' => $is_field_settings_form || !$field['widget']['force_default'],
+    '#description' => $element['#description'],
+  );
+  // If there is only one option, only show arguments.
+  if (count($options) == 1 && !$is_field_settings_form) {
+    list($key, $label) = each($options);
+    $element['vname']['#access'] = FALSE;
+    $element['vname']['#default_value'] = $key;
+  }
+
+  $element['vargs'] = array(
+    '#type' => 'textfield',
+    '#title' => !isset($label) ? t('Arguments') : t('%field (@value) arguments', array(
+      '%field' => $field['widget']['label'],
+      '@value' => $label,
+    )),
+    '#default_value' => isset($element['#default_value']['vargs']) ? $element['#default_value']['vargs'] : NULL,
+    '#access' => $is_field_settings_form || !$field['widget']['force_default'],
+    '#description' => t('A comma separated list of arguments to pass to the selected view. Wrap arguments containing commas in double quotes. Replace double quotes in arguments with two double quotes.'),
+  );
+  $token_description = t('Available tokens: %nid for the id of the current node; %author for the node author; %viewer for the viewing user');
+  if (module_exists('token')) {
+    $element['vargs']['#description'] .=
+      '<br />' . $token_description . '; ' . t('or any token from the placeholder token list.')
+      . '<br />' . t('Note: Using placeholder tokens in combination with the %fields row style may negatively affect site performance.', array('%fields' => t('Fields')));
+    // Only show token help for first value or in field settings form.
+    if ($element['#delta'] == 0 && !$field['widget']['force_default']) {
+      $element['token_help'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Placeholder tokens'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+      );
+      $element['token_help']['tokens'] = array(
+        '#value' => theme('token_help', 'node'),
+      );
+    }
+  }
+  else {
+    $element['vargs']['#description'] .= '<br />' . $token_description . '.';
+  }
+
+  return $element;
+}
+
+/**
+ * Prepare a list of views for selection.
+ */
+function _viewfield_potential_references($field, $delta = 0) {
+  $options = array();
+  if (isset($field['allowed_views']) && is_array($field['allowed_views'])) {
+    $field['allowed_views'] = array_filter($field['allowed_views']);
+  }
+  if (empty($field['allowed_views'])) {
+    $field['allowed_views'] = array_keys(views_get_all_views());
+  }
+  foreach ($field['allowed_views'] as $view_name) {
+    // Check for deleted views saved in allowed_views.
+    if ($view = views_get_view($view_name)) {
+      foreach ($view->display as $display) {
+        $options[$view->name .'|'. $display->id] = $view->name .' - '. $display->display_title;
+      }
+    }
+  }
+  // Add a '0' option for non-required or subsequent values of multiple fields.
+  if (empty($field['required']) || ($field['multiple'] && $delta > 0)) {
+    array_unshift($options, '<'. t('none') .'>');
+  }
+  return $options;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function viewfield_theme() {
+  return array(
+    'viewfield_select' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'viewfield_formatter_default' => array(
+      'arguments' => array('element' => NULL),
+    ),
+  );
+}
+
+/**
+ * Add CSS to force help text to wrap correctly on node edit form.
+ */
+function theme_viewfield_select($element) {
+  if (!empty($element['#children'])) {
+    $field = $element['#field'];
+    if ($field['multiple'] && $element['#delta'] == 0) {
+      // This is needed only for multiple viewfields.
+      drupal_add_css(drupal_get_path('module', 'viewfield') .'/viewfield.css');
+    }
+    return '<div class="viewfield-select">'. $element['#children'] .'</div>';
+  }
+}
+
+/**
+ * Perform argument replacement
+ */
+function _viewfield_get_view_args($vargs, $node) {
+  $args = array();
+  // Prevent token_replace() from running this function a second time
+  // before it completes the first time.
+  static $tokens = TRUE;
+  if ($tokens && !empty($vargs)) {
+    $pos = 0;
+    while ($pos < strlen($vargs)) {
+      $found = FALSE;
+      // If string starts with a quote, start after quote and get everything
+      // before next quote.
+      if (strpos($vargs, '"', $pos) === $pos) {
+        if (($quote = strpos($vargs, '"', ++$pos)) !== FALSE) {
+          // Skip pairs of quotes.
+          while (!(($ql = strspn($vargs, '"', $quote)) & 1)) {
+            $quote = strpos($vargs, '"', $quote + $ql);
+          }
+          $args[] = str_replace('""', '"', substr($vargs, $pos, $quote + $ql - $pos - 1));
+          $pos = $quote + $ql + 1;
+          $found = TRUE;
+        }
+      }
+      elseif (($comma = strpos($vargs, ',', $pos)) !== FALSE) {
+        // Otherwise, get everything before next comma.
+        $args[] = substr($vargs, $pos, $comma - $pos);
+        // Skip to after comma and repeat
+        $pos = $comma + 1;
+        $found = TRUE;
+      }
+      if (!$found) {
+        $args[] = substr($vargs, $pos);
+        $pos = strlen($vargs);
+      }
+    }
+    // Try to replace tokens if $args might contain one.
+    if (strpos($vargs, '[') !== FALSE && module_exists('token')) {
+      $tokens = FALSE;
+      // If the view field is being loaded as a "view field" of "view row",
+      // instead of a simple "node field", the node object is not fully populated:
+      // we need a full node to perform a correct replacement.
+      $node_values = node_load($node->nid);
+      $args = token_replace($args, 'node', $node_values);
+      $tokens = TRUE;
+    }
+    // For backwards compatibility, we scan for %nid, etc.
+    foreach ($args as $key => $value) {
+      $args[$key] = strtr($value, array(
+        '%nid' => $node->nid,
+        '%author' => isset($node->uid) ? $node->uid : (isset($node_values->uid) ? $node_values->uid : NULL),
+        '%viewer' => $GLOBALS['user']->uid,
+      ));
+    }
+  }
+  return $args;
+}

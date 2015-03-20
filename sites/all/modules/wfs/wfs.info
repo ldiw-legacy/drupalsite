@@ -1,0 +1,6 @@
+; $Id: wfs.info,v 1.1.2.1 2010/03/26 21:50:03 tmcw Exp $
+name = "WFS"
+description = "Provides a WFS service"
+dependencies[] = views
+dependencies[] = openlayers 
+core = "6.x"

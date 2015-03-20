@@ -1,0 +1,1114 @@
+<?php
+// $Id: vimeo.module,v 1.1.2.4 2010/12/07 23:17:32 jdwfly Exp $
+
+/**
+ * @file
+ * Defines vimeo video field type.
+ */
+
+//==========================================//
+// GENERAL
+//==========================================//
+
+/**
+ * Implementation of hook_help().
+ */
+function vimeo_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#vimeo":
+      $output = '<p>'. t("A CCK field for Vimeo videos complete with easy-to-use browser.") .'</p>';
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function vimeo_perm() {
+  return array('administer vimeo', 'insert vimeo videos');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function vimeo_menu() {
+  $items = array();
+  
+  // Admin settings
+  $items['admin/settings/vimeo'] = array(
+    'title' => 'Vimeo',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('vimeo_settings'),
+    'access arguments' => array('administer vimeo'),
+  );
+
+  $items['admin/settings/vimeo/settings'] = array(
+    'title' => 'Settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items['admin/settings/vimeo/source-list'] = array(
+    'title' => 'Vimeo Source List',
+    'page callback' => 'vimeo_source_list',
+    'page arguments' => array('vimeo_source_list'),
+    'access arguments' => array('administer vimeo'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -5,
+  );
+  $items['admin/settings/vimeo/add-new-source'] = array(
+    'title' => 'Add New Source',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('vimeo_source_add'),
+    'access arguments' => array('administer vimeo'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['admin/settings/vimeo/source/%/delete'] = array(
+    'title callback' => 'vimeo_title_callback',
+    'title arguments' => array('Delete source: !name', 4),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('vimeo_source_delete', 4),
+    'access arguments' => array('administer vimeo'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/settings/vimeo/default/%'] = array(
+    'title' => 'Vimeo Set Default',
+    'page callback' => 'vimeo_set_default',
+    'page arguments' => array(4),
+    'access arguments' => array('administer vimeo'),
+    'type' => MENU_CALLBACK,
+  );
+
+  //Browser
+  $items['vimeo/browser/%/%/%'] = array(
+    'title' => 'Vimeo Browser',
+    'page callback' => 'vimeo_browser',
+    'page arguments' => array(2,3,4),
+    'access arguments' => array('insert vimeo videos'),
+    'type' => MENU_CALLBACK,
+  );
+  
+  //Videos
+  $items['vimeo/videos/%/%/%/%/%'] = array(
+    'title' => 'Vimeo Videos',
+    'page callback' => 'vimeo_get_videos',
+    'page arguments' => array(2,3,4,5,6),
+    'access arguments' => array('insert vimeo videos'),
+    'type' => MENU_CALLBACK,
+  );
+  
+  //AHAH request
+  $items['vimeo/ahah/%/%/%/%/%'] = array(
+    'title' => 'Vimeo AHAH',
+    'page callback' => 'vimeo_ahah',
+    'page arguments' => array(2,3,4,5,6),
+    'access arguments' => array('insert vimeo videos'),
+    'type' => MENU_CALLBACK,
+  );
+  
+  return $items;
+}
+
+/**
+ * Custom titles for certain pages.
+ */
+function vimeo_title_callback($title, $pid = 0) {
+  $replacements = array();
+  $source = vimeo_sources($sid);
+  $replacements['!name'] = $source['type'] .': '. $source['name'];
+  return t($title, $replacements);
+}
+
+/**
+ * Return list of all available sources.
+ */
+function vimeo_sources($sid = NULL) {
+  $sources = array();
+    $result = db_query('SELECT * FROM {vimeo_sources} ORDER BY type, name');
+    while ($source = db_fetch_array($result)) {
+      $sources[$source['sid']] = $source;
+    }
+  if($sid != NULL && isset($sources[$sid])) {
+    return $sources[$sid];
+  }
+  else {
+    return $sources;
+  }
+}
+
+/**
+ * Create table of sources in Vimeo settings.
+ */
+function vimeo_source_list() {
+  $header = array(t('Type'), t('Name'), t('Actions'));
+  $rows = array();
+  foreach (vimeo_sources() as $source) {
+    if (variable_get('vimeo_default_source', NULL) == $source['sid']) {
+      $default = NULL;
+      $type = '<strong>'. $source['type'] .'</strong>';
+      $name = '<strong>'. $source['name'] .'</strong>';
+    }
+    else{
+      $default = '&nbsp;&nbsp;&nbsp;&nbsp;'. l(t('Make default'), 'admin/settings/vimeo/default/'. $source['sid']);
+      $type = $source['type'];
+      $name = $source['name'];
+    }
+    
+    $row = array();
+    $row[] = $type;
+    $row[] = $name;
+    $row[] = l(t('Remove'), 'admin/settings/vimeo/source/'. $source['sid'] .'/delete') . $default;
+    $rows[] = $row;
+  }
+  $output = theme('table', $header, $rows);
+  
+  return $output;
+}
+
+function vimeo_set_default($sid) {
+  variable_set('vimeo_default_source', $sid);
+  $source = vimeo_sources($sid);
+  drupal_set_message(t('Source default set to %name', array('%name' => $source['name'])));
+  drupal_goto('admin/settings/vimeo/source-list');
+}
+
+/**
+ * Form to add a new source.
+ */
+function vimeo_source_add($form_state) {
+  $form['source'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Source URL'), 
+    '#description' => t('Paste in the URL of a Vimeo: User, Album, Group or Channel.'),
+    '#type' => 'textfield',
+    '#required' => TRUE,
+    '#size' => '60',
+  );
+  
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add source'),
+  );
+  
+  $form['#validate'][]  = 'vimeo_source_validate';
+  $form['#submit'][]    = 'vimeo_source_submit';
+  
+  return $form;
+}
+
+/**
+ * Validate source and collect data from Vimeo.
+ */
+function vimeo_source_validate($form, &$form_state) {
+  $parts = explode('/', $form_state['values']['source']);
+  if ($parts[3] == 'groups') {
+    //Validate group
+    $data = unserialize(vimeo_curl_get('http://vimeo.com/api/v2/group/'.$parts[4].'/info.php'));
+    $name = $data['name'];
+    $type = 'Group';
+  }
+  else if ($parts[3] == 'channels') {
+    //Validate channel
+    $data = unserialize(vimeo_curl_get('http://vimeo.com/api/v2/channel/'.$parts[4].'/info.php'));
+    $name = $data['name'];
+    $type = 'Channel';
+  }
+  else if ($parts[3] == 'album') {
+    //Validate album
+    $data = unserialize(vimeo_curl_get('http://vimeo.com/api/v2/album/'.$parts[4].'/info.php'));
+    $name = $data['title'];
+    $type = 'Album';
+  }
+  else {
+    //Validate user
+    $data = unserialize(vimeo_curl_get('http://vimeo.com/api/v2/'.$parts[3].'/info.php'));
+    $name = $data['display_name'];
+    $type = 'User';
+  }
+  
+  $form_state['values']['name'] = $name;
+  $form_state['values']['id']   = $data['id'];
+  $form_state['values']['type'] = $type;
+  
+  if ($data['id'] == '') {
+    form_set_error('source', t('Source did not validate with Vimeo.'));
+  }
+}
+
+/**
+ * Save source.
+ */
+function vimeo_source_submit($form, &$form_state) {
+  $result = db_query('INSERT INTO {vimeo_sources} SET vid="%s", type="%s", name="%s"', $form_state['values']['id'], $form_state['values']['type'], $form_state['values']['name']);
+  drupal_set_message(t("%type: %name added.", array('%type' => $form_state['values']['type'], '%name' => $form_state['values']['name'])));
+}
+
+/**
+ * Form to delete a source.
+ */
+function vimeo_source_delete($form_state, $sid = NULL) {
+  $source = vimeo_sources($sid);
+  if (empty($source)) {
+    drupal_set_message(t('The specified source was not found.'), 'error');
+    drupal_goto('admin/settings/vimeo/source-list');
+  }
+  
+  $form = array();
+  $form['sid'] = array('#type' => 'value', '#value' => $sid);
+  return confirm_form(
+    $form,
+    t('Are you sure you want to remove the source %name?',
+      array('%name' => $source['name'])
+    ),
+    'admin/settings/vimeo/source-list',
+    t('This action cannot be undone.'),
+    t('Remove'),  t('Cancel')
+  );
+}
+
+/**
+ * Delete a player.
+ */
+function vimeo_source_delete_submit($form, &$form_state) {
+  $source = vimeo_sources($form_state['values']['sid']);
+  db_query('DELETE FROM {vimeo_sources} where sid = %d', $source['sid']);
+  drupal_set_message(t('Source %name was removed.', array('%name' => $source['name'])));
+  $form_state['redirect'] = 'admin/settings/vimeo/source-list';
+}
+
+/**
+ * Return list of all available sources by type.
+ */
+function vimeo_sources_by_type($type = NULL) {
+  $sources = array();
+    $result = db_query('SELECT * FROM {vimeo_sources} ORDER BY type, name');
+    while ($source = db_fetch_array($result)) {
+      //Check default
+      if (variable_get('vimeo_default_source', NULL) == $source['sid']) {
+        $source['default'] = ' default';
+      }
+      else {
+        $source['default'] = NULL;
+      }
+      
+      $sources[$source['type']][$source['vid']] = $source;
+    }
+  if($type != NULL && isset($sources[$type])) {
+    return $sources[$type];
+  }
+  else {
+    return $sources;
+  }
+}
+
+function vimeo_trim($text, $length) {
+  if (strlen($text) > $length) {
+    return substr($text, 0, ($length-2)).'&hellip;';
+  }
+  else {
+    return $text;
+  }
+}
+
+/**
+ * Vimeo browser pop-up.
+ */
+function vimeo_browser($field_name, $delta, $settings) {
+  drupal_add_js(drupal_get_path('module', 'vimeo') . '/vimeo.js');
+  drupal_add_css(drupal_get_path('module', 'vimeo') . '/theme/vimeo.css', 'module', 'screen', false);
+  
+    print '<html><head>'. drupal_get_css() .'</head><body class="vimeo-browser">';
+  
+    print '<div id="vimeo-nav">
+      <h3 class="users">Users</h3>
+      <ul>';
+    
+    $sources = vimeo_sources_by_type();
+    
+    if (isset($sources['User'])) {
+      foreach ($sources['User'] as $vid => $data) {
+        print '<li><a href="user/'. $vid .'/'. $field_name .'/'. $delta .'/'. $settings .'" class="vimeo-source'. $data['default'].'">'. vimeo_trim($data['name'], 30) .'</a></li>';
+      }
+    }
+    
+    print '</ul>
+      <h3 class="albums">Albums</h3>
+            <ul>';
+            
+    if (isset($sources['Album'])) {
+      foreach ($sources['Album'] as $vid => $data) {
+        print '<li><a href="album/'. $vid .'/'. $field_name .'/'. $delta .'/'. $settings .'" class="vimeo-source'. $data['default'].'">'. vimeo_trim($data['name'], 30) .'</a></li>';
+      }  
+    }
+    
+    print '</ul>
+      <h3 class="groups">Groups</h3>
+          <ul>';
+
+    if (isset($sources['Group'])) {
+      foreach ($sources['Group'] as $vid => $data) {
+        print '<li><a href="group/'. $vid .'/'. $field_name .'/'. $delta .'/'. $settings .'" class="vimeo-source'. $data['default'].'">'. vimeo_trim($data['name'], 30) .'</a></li>';
+      }  
+    }
+    
+    print '</ul>
+      <h3 class="channels">Channels</h3>
+            <ul>';
+    
+    if (isset($sources['Channel'])) {
+      foreach ($sources['Channel'] as $vid => $data) {
+        print '<li><a href="channel/'. $vid .'/'. $field_name .'/'. $delta .'/'. $settings .'" class="vimeo-source'. $data['default'].'">'. vimeo_trim($data['name'], 30) .'</a></li>';
+      }  
+    }
+      
+    print '</ul>
+    </div>
+    <div id="vimeo-view">
+      <div class="select-source">
+        <img src="'. base_path() . drupal_get_path('module', 'vimeo') .'/theme/source.png" class="source" />
+        <p>'. t('Please select a source found to your left.') .'</p>
+      </div>
+    </div>
+    <div id="vimeo-inserting">
+      <img src="'. base_path() . drupal_get_path('module', 'vimeo') .'/theme/inserting.gif" class="loading" />
+      <p>'. t('Gathering image data for insert.') .'</p>
+    </div>
+    <div id="vimeo-loading">
+      <img src="'. base_path() . drupal_get_path('module', 'vimeo') .'/theme/loading.gif" class="loading" />
+      <p>'. t('Loading...') .'</p>
+    </div>
+    <div id="vimeo-code">
+      <form id="vimeo-url-form" action="'.$field_name .'/'. $delta .'/'. $settings.'">
+        <input type="text" name="vimeo-url" id="vimeo-url" value="'. t('Paste Vimeo video URL. e.g. http://vimeo.com/9078364') .'" />
+        <input type="submit" name="vimeo-url-insert" value="Insert" id="vimeo-url-insert" />
+      </form>
+    </div>';
+  
+    print drupal_get_js() .'</body></html>';
+}
+
+function vimeo_get_videos($type, $id, $field_name, $delta, $settings) {
+    $output = '<ul>';
+    
+    //Get data
+    $videos = vimeo_cache_source_get($type, $id);
+    
+    $odd = true;
+    foreach ($videos as $id => $video) {
+      $url = $field_name .'/'. $delta .'/'. $settings.'/'. $video['id'];
+      if ($odd){ $zebra = ' class="odd"'; $odd = false; }else{ $zebra = ' class="even"'; $odd = true; }
+      
+      $output .= '<li'. $zebra .'>
+        <a href="'. $url .'" class="vimeo-insert"><img src="'. $video['thumbnail_small'] .'" class="thumbnail" /></a>
+        <h2 class="title"><a href="'. $url .'" class="vimeo-insert">'. vimeo_trim($video['title'], 34) .'</a></h2>
+        <span class="owner">'. $video['user_name'] .'</span>
+        <span class="created">'. date("j M Y H:i", strtotime($video['upload_date'])) .'</span>
+      </li>';
+    }
+    
+    $output .= '</ul>';
+    
+    print $output;
+}
+
+function vimeo_cache_source_set($type, $id) {
+  //Create request path depending on type
+  if ($type == 'user') {
+    $path = NULL;
+  }
+  else {
+    $path = $type .'/';
+  }
+  
+  //Get data from Vimeo.com
+  $data = unserialize(vimeo_curl_get('http://vimeo.com/api/v2/'. $path . $id .'/videos.php'));
+   
+  //Get cache time
+  if (variable_get('vimeo_source_cache', 3) == 0) {
+    $time = CACHE_TEMPORARY;
+  }
+  else if (variable_get('vimeo_source_cache', 3) == '0.5') {
+    $time = strtotime('+30 minutes');
+  }
+  else {
+    $time = strtotime('+'. variable_get('vimeo_source_cache', 3) .' hours');
+  }
+  
+  //Set cache
+  cache_set($type .'_'. $id, $data, 'cache_vimeo_sources', $time);
+  
+  return $data;
+}
+
+function vimeo_flush_caches() {
+  return array('cache_vimeo_sources','cache_vimeo_videos');
+}
+
+function vimeo_cache_source_get($type, $id) {
+  //Manually flush cache if needed
+  db_query("DELETE FROM {cache_vimeo_sources} WHERE expire <= UNIX_TIMESTAMP(CURRENT_TIMESTAMP)");
+  
+  //Get source data from cache, otherwise set it
+  if (cache_get($type .'_'. $id, 'cache_vimeo_sources') != 0) {
+    $videos = cache_get($type .'_'. $id, 'cache_vimeo_sources');
+    $videos = $videos->data;
+  }
+  else {
+    $videos = vimeo_cache_source_set($type, $id);
+  }
+  
+  return $videos;
+}
+
+// Curl helper function
+function vimeo_curl_get($url) {
+  $curl = curl_init($url);
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+  $return = curl_exec($curl);
+  curl_close($curl);
+  return $return;
+}
+
+function vimeo_download_thumbnail($id, $url) {
+  //Check if the containing folder exists -- if not, create it.
+  $dir = file_create_path() .'/vimeo-originals';
+  file_check_directory($dir, 1);
+  
+  //Setup local filename
+  $src = file_create_path() . '/vimeo-originals/' . $id . '.jpg';
+  $result = drupal_http_request($url);
+  $code = floor($result->code / 100) * 100;
+  $types = array('image/jpeg');
+  if ($result->data && $code != 400 && $code != 500 && in_array($result->Content-Type, $types)) {
+    $src = file_save_data($result->data, $src, FILE_EXISTS_REPLACE);
+    return TRUE;
+  }
+}
+
+function vimeo_cache_video_set($vid) {
+  //Get data from Vimeo.com
+  $data = unserialize(vimeo_curl_get('http://vimeo.com/api/v2/video/' . $vid . '.php'));
+  $data = $data[0];
+  
+  //Download large thumbnail to our server (for use with ImageCache)
+  $i = 0;
+  do {
+    if($i > 2) {
+      $result = TRUE;
+      drupal_set_message('Unable to download thumbnail from Vimeo.','error');
+    }
+    else {
+      $result = vimeo_download_thumbnail($vid, $data['thumbnail_large']);
+      $i++;
+    }
+  } while ($result != TRUE);
+  
+  //Add local thumbnail to data array
+  $data['thumbnail_local'] = file_create_path() . '/vimeo-originals/' . $vid . '.jpg';
+  
+  //Flush ImageCahce
+  imagecache_image_flush($data['thumbnail_local']);
+  
+  //Get cache time
+  if (variable_get('vimeo_video_cache', '-1') == '-1') {
+    $time = CACHE_PERMANENT;
+  }
+  else if (variable_get('vimeo_video_cache', '-1') == 0) {
+    $time = CACHE_TEMPORARY;
+  }
+  else {
+    $time = strtotime('+'. variable_get('vimeo_video_cache', '-1') .' hours');
+  }
+  
+  //Cache video data
+  cache_set($vid, $data, 'cache_vimeo_videos', $time);
+  
+  return $data;
+}
+
+function vimeo_cache_video_get($vid) {
+  //Get data if cached, if not fetch and cache it
+  if (cache_get($vid, 'cache_vimeo_videos') != 0) {
+    $video = cache_get($vid, 'cache_vimeo_videos');
+    $data = $video->data;
+  }
+  else {
+    $data = vimeo_cache_video_set($vid);
+  }
+  
+  return $data;
+}
+
+function vimeo_ahah($type, $field_name, $delta, $settings, $id) {
+  if ($type == 'insert') {
+    //Cache video data
+    $data = vimeo_cache_video_set($id);
+    
+    $hash = md5(rand()*rand());
+    
+    //Form data
+    $vimeo_id    = $id;
+    $thumb       = '<img src="'. imagecache_create_url('vimeo_thumbnail', $data['thumbnail_local'], FALSE) .'?'.$hash.'" />';
+    $title       = $data['title'];
+    $owner       = $data['user_name'];
+    
+    $button = '<a href="'. $field_name .'/'. $delta .'/'. $settings .'" class="remove">'. t('Remove') .'</a> | <a href="'. $field_name .'/'. $delta .'/'. $settings .'/'. $vimeo_id .'" class="refresh">'. t('Refresh') .'</a>';
+  }
+  else if ($type == 'remove') {
+    //Form data
+    $vimeo_id    = NULL;
+    $thumb       = NULL;
+    $title       = NULL;
+    $owner       = NULL;
+    
+    $button = '<a href="'. $field_name .'/'. $delta .'/'. $settings .'" class="browse">'. t('Browse') .'</a>';
+  }
+  
+  //Get form settings
+  $settings = unserialize(base64_decode($settings));
+  
+  //Set required
+  if ($settings['required'] == false) {
+    $form_required = NULL;
+  }
+  else{
+    $form_required = '<span class="form-required" title="This field is required.">*</span>';
+  }; 
+  
+  //Set description
+  if ($settings['description'] == '') {
+    $form_description = NULL;
+  }
+  else{
+    $form_description = '<div class="description">'. $settings['description'] .'</div>';
+  }
+  
+  //Set title
+  if ($settings['title'] == '') {
+    $form_title = NULL;
+  }
+  else {
+    $form_title = '<label for="edit-field-'. $field_name .'-'. $delta .'-value">'. $settings['title'] .': '. $form_required .'</label>';
+  }
+  
+  print '<div class="form-item" id="edit-field-'. $field_name .'-'. $delta .'-value-wrapper">
+  '. $form_title .'
+    <span class="field-prefix">
+      <div class="vimeo-thumbnail">'. $thumb .'</div>
+    </span>
+    <input type="text" maxlength="128" name="field_'. $field_name .'['. $delta .'][value]" id="edit-field-'. $field_name .'-'. $delta .'-value" size="60" value="'. $vimeo_id .'" class="form-text vimeo-field-id" />
+    <span class="field-suffix">
+      <div class="vimeo-details">
+        <strong>'. $title .'</strong><br />
+        <em>'. $owner .'</em>
+      </div>
+      <div class="vimeo-options">'. $button .'</div>
+      <div class="vimeo-break"></div>
+      '. $form_description .'
+    </span>
+  </div>';
+}
+
+
+/**
+ * VimeoField admin settings form.
+ */
+function vimeo_settings() {  
+  $form['player'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Player Options'),
+    '#description' => t('Note: You cannot override any options set by Vimeo Plus members.'),
+    '#weight' => -2,
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  
+  $form['player']['vimeo_width'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Width'),
+    '#default_value' => variable_get('vimeo_width', '640'),
+    '#field_suffix' => 'px',
+    '#required' => TRUE,
+    '#size' => '10',
+    '#description' => t('Width of the video player.'),
+  );
+  
+  $form['player']['vimeo_height'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Height'),
+    '#default_value' => variable_get('vimeo_height', '360'),
+    '#field_suffix' => 'px',
+    '#required' => TRUE,
+    '#size' => '10',
+    '#description' => t('Height of the video player.'),
+  );
+  
+  $form['player']['vimeo_colour'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Colour'),
+    '#default_value' => variable_get('vimeo_colour', '00ADEF'),
+    '#required' => TRUE,
+    '#size' => '10',
+    '#field_prefix' => '#',
+    '#description' => t("The colour to use in the video's UI controls."),
+  );
+
+  $form['player']['vimeo_title'] = array(
+    '#type' => 'select',
+    '#title' => t('Title'),
+    '#default_value' => variable_get('vimeo_title', 1),
+    '#options' => array(0 => t('No'), 1 => t('Yes')),
+    '#description' => t("If yes, users will see the video's title."),
+  );
+  
+  $form['player']['vimeo_byline'] = array(
+    '#type' => 'select',
+    '#title' => t('Byline'),
+    '#default_value' => variable_get('vimeo_byline', 1),
+    '#options' => array(0 => t('No'), 1 => t('Yes')),
+    '#description' => t("If yes, users will see the video's byline."),
+  );
+  
+  $form['player']['vimeo_portrait'] = array(
+    '#type' => 'select',
+    '#title' => t('Portrait'),
+    '#default_value' => variable_get('vimeo_portrait', 1),
+    '#options' => array(0 => t('No'), 1 => t('Yes')),
+    '#description' => t("If yes, users will see the Vimeo user's portrait."),
+  );
+
+  $form['player']['vimeo_fullscreen'] = array(
+    '#type' => 'select',
+    '#title' => t('Fullscreen'),
+    '#default_value' => variable_get('vimeo_fullscreen', 1),
+    '#options' => array(0 => t('No'), 1 => t('Yes')),
+    '#description' => t('If yes, users can watch videos fullscreen.'),
+  );
+
+  $form['player']['vimeo_autoplay'] = array(
+    '#type' => 'select',
+    '#title' => t('Auto Play'),
+    '#default_value' => variable_get('vimeo_autoplay', 0),
+    '#options' => array(0 => t('No'), 1 => t('Yes')),
+    '#description' => t('Video will automatically start playing on page load.'),
+  );
+
+  $form['cache'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t('Cache Settings'),
+    '#description' => t('Note: You can always manually refresh video data when editing individual nodes.'),
+    '#weight' => 0,
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+
+  $form['cache']['vimeo_source_cache'] = array(
+    '#type' => 'select',
+    '#title' => t('Source Cache Time'),
+    '#default_value' => variable_get('vimeo_source_cache', 3),
+    '#options' => array(0 => t('Temporary - Flush on Cron'), '0.5' => t('30 minutes'), 1 => t('1 hour'), 2 => t('2 hours'), 3 => t('3 hours (recommended)'), 5 => t('5 hours'), 24 => t('1 day'), 168 => t('1 week')),
+    '#description' => t('How long until vimeo source lists automatically get updated.'),
+  );
+  
+  $form['cache']['vimeo_video_cache'] = array(
+    '#type' => 'select',
+    '#title' => t('Video Cache Time'),
+    '#default_value' => variable_get('vimeo_video_cache', '-1'),
+    '#options' => array(0 => t('Temporary (Not recommended)'), 24 => t('1 day'), 168 => t('1 week'), 744 => t('1 month'), 2232 => t('3 months'), '-1' => t('Never (recommended)')),
+    '#description' => t('How long until vimeo video data automatically get updated.'),
+  );
+
+  return system_settings_form($form);
+}
+
+
+
+/**
+ * Implementation of hook_theme().
+ */
+function vimeo_theme() {
+  //If template exists in the current theme use that instead.
+  
+  if (file_exists(path_to_theme() .'/vimeo_custom_formatter.tpl.php')) {
+    $path = path_to_theme();
+  }
+  else {
+    $path = drupal_get_path('module', 'vimeo') .'/theme';
+  }
+  
+  return array(
+    'vimeo_browser' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'vimeo_formatter_default' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'vimeo_formatter_plain' => array(
+      'arguments' => array('element' => NULL),
+    ),
+    'vimeo_formatter_custom' => array(
+      'arguments' => array('element' => NULL),
+      'template' => 'vimeo_custom_formatter',
+      'path' => $path,
+    ),
+  );
+}
+
+/**
+ * Setup variables for the insert window.
+ *
+ * @param array $vars
+ */
+function template_preprocess_vimeo_formatter_custom(&$vars) {
+  $data = vimeo_cache_video_get($vars['element']['#item']['value']);
+  
+  //Vimeo video data
+  $vars['video']                  = $data;
+  
+  //Node data
+  $vars['node']                   = $vars['element']['#node'];
+  
+  //Vimeo player settings
+  $vars['player']['width']        = variable_get('vimeo_width', 640);
+  $vars['player']['height']       = variable_get('vimeo_height', 360);
+  $vars['player']['title']        = variable_get('vimeo_title', 1);
+  $vars['player']['byline']       = variable_get('vimeo_byline', 1);
+  $vars['player']['portrait']     = variable_get('vimeo_portrait', 1);
+  $vars['player']['color']        = variable_get('vimeo_colour', '00ADEF');
+  $vars['player']['fullscreen']   = variable_get('vimeo_fullscreen', 1);
+  $vars['player']['autoplay']     = variable_get('vimeo_autoplay', 0);
+  
+  return $vars;
+}
+
+/**
+ * Implementation of hook_field_info().
+ */
+function vimeo_field_info() {
+  return array(
+    'vimeo' => array(
+      'label' => t('Vimeo'),
+      'description' => t('Store vimeo video URL in the database.'),
+//      'content_icon' => 'icon_content_vimeo.png',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_settings().
+ */
+function vimeo_field_settings($op, $field) {
+  switch ($op) {
+    case 'database columns':
+      $columns['value'] = array(
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => FALSE,
+        'sortable' => FAlSE,
+        'views' => FALSE
+      );
+      return $columns;
+  }
+}
+
+/**
+ * Implementation of hook_field().
+ */
+function vimeo_field($op, &$node, $field, &$items, $teaser, $page) {
+  switch ($op) {
+    case 'validate':
+      $allowed_values = content_allowed_values($field);
+      if (is_array($items)) {
+        foreach ($items as $delta => $item) {
+          $error_element = isset($item['_error_element']) ? $item['_error_element'] : '';
+          if (is_array($item) && isset($item['_error_element'])) unset($item['_error_element']);
+        }
+      }
+      return $items;
+
+    case 'sanitize':
+      foreach ($items as $delta => $item) {
+        if (!empty($field['vimeo_processing'])) {
+          $check = is_null($node) || (isset($node->build_mode) && $node->build_mode == NODE_BUILD_PREVIEW);
+          $vimeo = isset($item['value']) ? check_markup($item['value'], $item['format'], $check) : '';
+        }
+        else {
+          $vimeo = check_plain($item['value']);
+        }
+        $items[$delta]['safe'] = $vimeo;
+      }
+  }
+}
+
+/**
+ * Implementation of hook_content_is_empty().
+ */
+function vimeo_content_is_empty($item, $field) {
+  if (empty($item['value']) && (string)$item['value'] !== '0') {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_field_formatter_info().
+ */
+function vimeo_field_formatter_info() {
+  return array(
+    'default' => array(
+      'label' => t('Default'),
+      'field types' => array('vimeo'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'plain' => array(
+      'label' => t('Vimeo video ID'),
+      'field types' => array('vimeo'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+    'custom' => array(
+      'label' => t('Custom'),
+      'field types' => array('vimeo'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+    ),
+  );
+}
+
+/**
+ * Theme function for 'default' vimeo field formatter.
+ */
+function theme_vimeo_formatter_default($element) {
+  if (isset($element['#item']['value']) && !empty($element['#item']['value']) ) {
+    $video_vid = $element['#item']['value'];
+    return '<iframe src="http://player.vimeo.com/video/' . $video_vid . '?title=0&amp;byline=0&amp;portrait=0" 
+    width="' . variable_get('vimeo_width', 640) . '" height="' . variable_get('vimeo_height', 360) . '" frameborder="0"></iframe>';
+  }
+  else {
+    // Nothing to output
+    return '';
+  }
+}
+
+/**
+ * Theme function for 'plain' vimeo field formatter.
+ */
+function theme_vimeo_formatter_plain($element) {
+  return strip_tags($element['#item']['safe']);
+}
+
+/**
+ * Implementation of hook_widget_info().
+ *
+ * Here we indicate that the content module will handle
+ * the default value and multiple values for these widgets.
+ *
+ * Callbacks can be omitted if default handing is used.
+ * They're included here just so this module can be used
+ * as an example for custom modules that might do things
+ * differently.
+ */
+function vimeo_widget_info() {
+  return array(
+    'vimeo_browser' => array(
+      'label' => t('Vimeo Browser'),
+      'field types' => array('vimeo'),
+      'multiple values' => CONTENT_HANDLE_CORE,
+      'callbacks' => array(
+        'default value' => CONTENT_CALLBACK_NONE,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of FAPI hook_elements().
+ *
+ * Any FAPI callbacks needed for individual widgets can be declared here,
+ * and the element will be passed to those callbacks for processing.
+ *
+ * Drupal will automatically theme the element using a theme with
+ * the same name as the hook_elements key.
+ *
+ * Autocomplete_path is not used by vimeo_widget but other widgets can use it
+ * (see nodereference and userreference).
+ */
+function vimeo_elements() {
+  return array(
+    'vimeo_browser' => array(
+      '#input' => TRUE,
+      '#columns' => array('value', 'data'), '#delta' => 0,
+      '#process' => array('vimeo_browser_process'),
+      '#autocomplete_path' => FALSE,
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_widget().
+ *
+ * Attach a single form element to the form. It will be built out and
+ * validated in the callback(s) listed in hook_elements. We build it
+ * out in the callbacks rather than here in hook_widget so it can be
+ * plugged into any module that can provide it with valid
+ * $field information.
+ *
+ * Content module will set the weight, field name and delta values
+ * for each form element. This is a change from earlier CCK versions
+ * where the widget managed its own multiple values.
+ *
+ * If there are multiple values for this field, the content module will
+ * call this function as many times as needed.
+ *
+ * @param $form
+ *   the entire form array, $form['#node'] holds node information
+ * @param $form_state
+ *   the form_state, $form_state['values'][$field['field_name']]
+ *   holds the field's form values.
+ * @param $field
+ *   the field array
+ * @param $items
+ *   array of default values for this field
+ * @param $delta
+ *   the order of this item in the array of subelements (0, 1, 2, etc)
+ *
+ * @return
+ *   the form item for a single element for this field
+ */
+function vimeo_widget(&$form, &$form_state, $field, $items, $delta = 0) {
+  $element = array(
+    '#type' => $field['widget']['type'],
+    '#default_value' => isset($items[$delta]) ? $items[$delta] : '',
+  );
+  return $element;
+}
+
+/**
+ * Process an individual element.
+ *
+ * Build the form element. When creating a form using FAPI #process,
+ * note that $element['#value'] is already set.
+ *
+ * The $fields array is in $form['#field_info'][$element['#field_name']].
+ */
+function vimeo_browser_process($element, $edit, $form_state, $form) {
+  drupal_add_js(drupal_get_path('module', 'vimeo') . '/vimeo.js');
+  drupal_add_css(drupal_get_path('module', 'vimeo') . '/theme/vimeo.css', 'module', 'screen', false);
+  if(module_exists('jquery_ui')){ jquery_ui_add('ui.dialog'); };
+
+  $field = $form['#field_info'][$element['#field_name']];
+  
+  $field_name = explode('_', $element['#field_name']);
+  
+  $settings = array();
+  $settings['title']        = $element['#title'];
+  $settings['description']  = $element['#description'];
+  $settings['required']     = $element['#required'];
+  
+  $settings = base64_encode(serialize($settings));
+  
+  //Get data if available
+  $field_key = $element['#columns'][0];
+  $delta = $element['#delta'];
+  
+  if (isset($element['#value'][$field_key])) {
+    $data = vimeo_cache_video_get($element['#value'][$field_key]);
+    
+    $hash = md5(rand()*rand());
+    
+    $button = '<a href="'. $field_name[1] .'/'. $element['#delta'] .'/'. $settings .'" class="remove">'. t('Remove') .'</a> | <a href="'. $field_name[1] .'/'. $element['#delta'] .'/'. $settings .'/'. $element['#value'][$field_key] .'" class="refresh">'. t('Refresh') .'</a>';
+    $thumb  = '<img src="'. imagecache_create_url('vimeo_thumbnail', $data['thumbnail_local'], FALSE) .'?'. $hash .'" />';
+    $title  = $data['title'];
+    $owner  = $data['user_name'];
+    $vid    = $element['#value'][$field_key];
+  }
+  else {
+    $button = '<a href="'. $field_name[1] .'/'. $element['#delta'] .'/'. $settings .'" class="browse">'. t('Browse') .'</a>';
+    $thumb  = NULL;
+    $title  = NULL;
+    $owner  = NULL;
+    $vid    = NULL;
+  }
+  
+  //Vimeo video ID
+  $element[$field_key] = array(
+    '#type' => 'textfield',
+    '#default_value' => $vid,
+    '#autocomplete_path' => $element['#autocomplete_path'],
+    '#size' => !empty($field['widget']['size']) ? $field['widget']['size'] : 60,
+    '#attributes' => array('class' => 'vimeo-field-id'),
+    '#field_prefix' => '<div class="vimeo-thumbnail">'. $thumb .'</div>', 
+    '#field_suffix' => '<div class="vimeo-details"><strong>' . $title . '</strong><br /><em>' . $owner . '</em></div><div class="vimeo-options">' . $button . '</div><div class="vimeo-break"></div>', 
+    '#prefix' => '<div class="vimeo-container-field-'. $field_name[1] .'-'. $element['#delta'] .'">',
+    '#suffix' => '</div>',
+    // The following values were set by the content module and need
+    // to be passed down to the nested element.
+    '#title' => $element['#title'],
+    '#description' => $element['#description'],
+    '#required' => $element['#required'],
+    '#field_name' => $element['#field_name'],
+    '#type_name' => $element['#type_name'],
+    '#delta' => $element['#delta'],
+    '#columns' => $element['#columns'],
+  );
+    
+  // Used so that hook_field('validate') knows where to flag an error.
+  $element['_error_element'] = array(
+    '#type' => 'value',
+    '#value' => implode('][', array_merge($element['#parents'], array($field_key))),
+  );
+
+  return $element;
+}
+
+/**
+ * FAPI theme for an individual vimeo elements.
+ *
+ * The vimeofield or vimeoarea is already rendered by the
+ * vimeofield or vimeoarea themes and the html output
+ * lives in $element['#children']. Override this theme to
+ * make custom changes to the output.
+ *
+ * $element['#field_name'] contains the field name
+ * $element['#delta]  is the position of this element in the group
+ */
+function theme_vimeo_browser($element) {
+  return $element['#children'];
+}
+
+function vimeo_imagecache_default_presets() {
+  $presets = array();
+  $presets['vimeo_thumbnail'] = array (
+    'presetname' => 'vimeo_thumbnail',
+    'actions' => 
+    array (
+      0 => 
+      array (
+        'weight' => '0',
+        'module' => 'imagecache',
+        'action' => 'imagecache_deprecated_scale',
+        'data' => 
+        array (
+          'fit' => 'outside',
+          'width' => '160',
+          'height' => '90',
+        ),
+      ),
+      1 => 
+      array (
+        'weight' => '0',
+        'module' => 'imagecache',
+        'action' => 'imagecache_crop',
+        'data' => 
+        array (
+          'width' => '160',
+          'height' => '90',
+          'xoffset' => 'center',
+          'yoffset' => 'center',
+        ),
+      ),
+    ),
+  );
+  return $presets;
+}

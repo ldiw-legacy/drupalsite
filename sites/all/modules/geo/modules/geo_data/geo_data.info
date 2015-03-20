@@ -1,0 +1,6 @@
+; $Id: geo_data.info,v 1.1 2008/08/20 15:06:39 vauxia Exp $
+name = Geo Data
+description = Interface with external GIS data, providing views and field integration
+package = Geo
+dependencies[] = geo
+core = 6.x

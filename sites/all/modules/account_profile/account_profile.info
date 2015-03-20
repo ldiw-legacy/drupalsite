@@ -1,0 +1,13 @@
+name = Account Profile
+description = Integration user account form with Profile content fields
+package = CCK
+core = 6.x
+dependencies[] = content
+dependencies[] = content_profile
+
+; Information added by drupal.org packaging script on 2011-06-16
+version = "6.x-1.x-dev"
+core = "6.x"
+project = "account_profile"
+datestamp = "1308182545"
+

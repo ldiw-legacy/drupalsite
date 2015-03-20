@@ -1,0 +1,226 @@
+<?php
+// $Id
+
+//!!! Implement requirements check that Services is 3.x. version
+
+/***************************************************************************/
+/*******************************             *******************************/
+/******************************* hook_menu() *******************************/
+/*******************************             *******************************/
+/***************************************************************************/
+
+function ldiw_api_menu()
+{
+	return array(
+		'get-api-base-url.json' => array(
+			'file' => 'ldiw_api.inc',
+			'page callback' => 'ldiw_api_get_api_base_url',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'api/waste-point-extra-fields.json' => array(
+			'file' => 'ldiw_api.inc',
+			'page callback' => '_ldiw_api_waste_point_extra_fields',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		);
+	}
+
+/***************************************************************************/
+/*************************                         *************************/
+/************************* hook_content_fieldapi() *************************/
+/*************************                         *************************/
+/***************************************************************************/
+
+function ldiw_api_content_fieldapi($op,$field)
+{
+	if (in_array($op,array('create instance','update instance',
+													'delete instance'))) {
+		cache_clear_all('services:','cache',TRUE);
+		}
+	}
+
+/***************************************************************************/
+/**********************                               **********************/
+/********************** ldiw_api_services_resources() **********************/
+/**********************                               **********************/
+/***************************************************************************/
+
+function ldiw_api_services_resources()
+{
+	$create_update_args=array(
+				array(
+					'name' => 'lon',
+					'optional' => TRUE,
+					'source' => array('data' => 'lon'),
+					'type' => 'double',
+					'description' => 'Longitude, in WGS84',
+					),
+				array(
+					'name' => 'lat',
+					'optional' => TRUE,
+					'source' => array('data' => 'lat'),
+					'type' => 'double',
+					'description' => 'Latitude, in WGS84',
+					),
+				array(
+					'name' => 'client_id',
+					'optional' => TRUE,
+					'source' => array('data' => 'client_id'),
+					'type' => 'string',
+					'description' => 'Semi-unique ID of ' .
+							'phone/computer of the user. Used for ' .
+							'anti-abuse, e.g. blocking specific ' .
+							'anonymous users',
+					),
+				array(
+					'name' => 'cleaned_by_mapper',
+					'optional' => TRUE,
+					'source' => array('data' => 'cleaned_by_mapper'),
+					'type' => 'integer',
+					'description' => 'Nonzero if the mapper cleaned the ' .
+							'Waste Point after mapping',
+					),
+		);
+
+	require_once('ldiw_api.inc');
+	foreach (ldiw_waste_map_get_photo_upload_fields() as
+													$idx => $photo_field) {
+		$key='photo_file_' . ($idx+1);
+		$create_update_args[]=array(
+								'name' => $key,
+								'optional' => TRUE,
+								'source' => array('data' => $key),
+								'type' => 'struct',
+								);
+		}
+
+	foreach (_ldiw_api_get_server_specific_fields() as $key => $info) {
+		$create_update_args[]=array(
+								'name' => $key,
+								'optional' => TRUE,
+								'source' => array('data' => $key),
+								'type' => 'string',
+								);
+		}
+
+	return array(
+		'wp' => array(
+			'create' => array(
+				'callback' => '_ldiw_api_create',
+				'file' => array('file' => 'inc','module' => 'ldiw_api'),
+				'args' => $create_update_args,
+				'access callback' => '_ldiw_api_access',
+				'access arguments' => array('create'),
+				'access arguments append' => TRUE,
+				'rest request parsers' => array('multipart/form-data' =>
+										'_ldiw_api_multipart_form_parser'),
+				),
+
+			'update' => array(
+				'callback' => '_ldiw_api_update',
+				'file' => array('file' => 'inc','module' => 'ldiw_api'),
+				'args' => array_merge($create_update_args,array(
+						array(
+							'name' => 'id',
+							'optional' => FALSE,
+							'source' => array('path' => 0),
+							'type' => 'int',
+							'description' => 'The id of Waste Point to update',
+							),
+						)),
+				'access callback' => '_ldiw_api_access',
+				'access arguments' => array('update'),
+				'access arguments append' => TRUE,
+				'rest request parsers' => array('multipart/form-data' =>
+										'_ldiw_api_multipart_form_parser'),
+				),
+
+			'retrieve' => array(
+				'callback' => '_ldiw_api_retrieve',
+				'file' => array('file' => 'inc','module' => 'ldiw_api'),
+				'args' => array(
+						array(
+							'name' => 'id',
+							'optional' => FALSE,
+							'source' => array('path' => 0),
+							'type' => 'int',
+							'description' => 'The id of Waste Point to get',
+							),
+						array(
+							'name' => 'max_width',
+							'optional' => TRUE,
+							'default value' => 500,
+							'source' => array('param' => 'max_width'),
+							'type' => 'int',
+							'description' => 'Maximum display width, in ' .
+									'pixels. This is important for photos',
+							),
+						array(
+							'name' => 'language_code',
+							'optional' => TRUE,
+							'default value' => NULL,
+							'source' => array('param' => 'language_code'),
+							'type' => 'string',
+							'description' => "RFC 4646 compliant language " .
+									"code, e.g. 'es'. If it is " .
+									"unrecognised or missing, then " .
+									"server language is used",
+							),
+						),
+				'access callback' => '_ldiw_api_access',
+				'access arguments' => array('view'),
+				'access arguments append' => TRUE,
+				),
+			),
+		);
+	}
+
+class LDIW_Plaintext_Formatter {
+	function __construct($data) { $this->data=$data; }
+	public function render() { return $this->data; }
+	}
+
+/***************************************************************************/
+/**************                                              ***************/
+/************** hook_rest_server_response_formatters_alter() ***************/
+/**************                                              ***************/
+/***************************************************************************/
+
+function ldiw_api_rest_server_response_formatters_alter(&$formatters)
+{
+	$formatters['html']=array(
+					'mime types' => array('text/html','text/plain'),
+					'view' => 'LDIW_Plaintext_Formatter'
+					);
+
+	return $formatters;
+	}
+
+/***************************************************************************/
+/********************                                   ********************/
+/******************** _ldiw_api_multipart_form_parser() ********************/
+/********************                                   ********************/
+/***************************************************************************/
+
+function _ldiw_api_multipart_form_parser($handle)
+{
+	if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+		return array_merge($_FILES,$_POST);
+		}
+
+	return array();	//!!! To support PUT method, we have to parse
+					//		multipart/form-data by ourselves here
+	}
+
+function _ldiw_api_access($op='view',$args=array()) {
+	if ($op == 'view') {
+		return TRUE;
+		}
+	$node='waste_point';
+	if ($op != 'create' && !empty($args)) {
+		$node=node_load(end($args));
+		}
+	return node_access($op,$node);
+	}

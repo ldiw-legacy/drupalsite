@@ -1,0 +1,84 @@
+<?php
+// $Id: vimeo.install,v 1.1.2.2 2010/02/20 11:10:32 starnox Exp $
+
+/**
+* @file
+* Install file for Vimeo.
+*/
+
+/**
+ * Implementation of hook_install().
+ */
+function vimeo_install() {
+  drupal_load('module', 'content');
+  content_notify('install', 'vimeo');
+  drupal_install_schema('vimeo');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function vimeo_uninstall() {
+  drupal_load('module', 'content');
+  content_notify('uninstall', 'vimeo');
+  drupal_uninstall_schema('vimeo');
+  
+  // Delete variables stored in the DB
+  db_query("DELETE FROM {variable} WHERE name LIKE 'vimeo%'");
+}
+
+/**
+ * Implementation of hook_enable().
+ *
+ * Notify content module when this module is enabled.
+ */
+function vimeo_enable() {
+  drupal_load('module', 'content');
+  content_notify('enable', 'vimeo');
+}
+
+/**
+ * Implementation of hook_disable().
+ *
+ * Notify content module when this module is disabled.
+ */
+function vimeo_disable() {
+  drupal_load('module', 'content');
+  content_notify('disable', 'vimeo');
+}
+
+function vimeo_schema() {
+    $schema['vimeo_sources'] = array(
+    'fields' => array(
+      'sid' => array(
+        'description' => t('The primary identifier for a Vimeo source.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'vid' => array(
+        'description' => t('The Vimeo identifier for a Vimeo source.'),
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => ''),
+      'type' => array(
+        'description' => t('The Vimeo identifier for a Vimeo source.'),
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => ''),
+      'name' => array(
+        'description' => t('The name of an mp3 player.'),
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => ''),
+    ),
+    'primary key' => array('sid'),
+  );
+  
+  $schema['cache_vimeo_sources'] = drupal_get_schema_unprocessed('system', 'cache');
+  $schema['cache_vimeo_videos'] = drupal_get_schema_unprocessed('system', 'cache');
+  
+  return $schema;
+}

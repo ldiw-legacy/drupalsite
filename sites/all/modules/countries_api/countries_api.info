@@ -1,0 +1,11 @@
+name = "Country codes API"
+description = "This module provides an API for official ISO 3166 country codes and names."
+package = "Location"
+core = 6.x
+
+; Information added by drupal.org packaging script on 2012-05-12
+version = "6.x-1.2"
+core = "6.x"
+project = "countries_api"
+datestamp = "1336853755"
+

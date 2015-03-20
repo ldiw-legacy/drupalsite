@@ -1,0 +1,160 @@
+html, body, #map, #map-sidebar {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  margin: 0;
+  background: #ededed;
+  font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  color: #212425;
+}
+
+a {
+  text-decoration: none;
+  outline: none;
+}
+a:hover {
+  
+}
+a img { border: none; }
+
+.left { float: left; }
+.right { float: right; }
+.clearfix:after {
+  content: "."; display: block;height: 0;clear: both;font-size: 1px;line-height: 1px;visibility: hidden;
+}
+.clearfix { zoom:1; }
+.centered {
+  text-align: center;
+}
+  .centered ul {
+    position: relative;
+    clear: left;
+    float: left;
+    left: 50%;
+    text-align: center;
+  }
+    .centered li {
+      right: 50%;
+      position: relative;
+      display: block;
+    }
+.links {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+  .links li {
+    float: left;
+    margin: 0;
+    padding: 0;
+  }
+  .right .links li {
+    margin-left: 5px;
+  }
+  .left .links li {
+    margin-right: 5px;
+  }
+    .links a {
+      display: block;
+    }
+    
+#map {
+  
+}
+#map-sidebar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 320px;
+  -moz-box-shadow: 0 0 15px rgba(0,0,0,.8);
+  -webkit-box-shadow: 0 0 15px rgba(0,0,0,.8);
+  box-shadow: 0 0 15px rgba(0,0,0,.8);
+  background: url('../images/map.gif?1');
+}
+  .links {
+    background: #2e3233;
+    background: -moz-linear-gradient(90deg, #2e3233, #282c2d);
+    background: -webkit-gradient(linear, left bottom, left top, from(#2e3233), to(#282c2d));
+    font-size: 11px;
+    padding: 8px 0 11px 17px;
+  }
+    .links li {
+      margin-right: 15px;
+    }
+      .links a {
+        color: #979999;
+      }
+      .links .active a, .links a:hover {
+        color: white;
+      }
+    #infopane {
+      overflow: auto;
+    }
+      #infopane .inner {
+        padding: 25px 25px 25px 30px;
+      }
+        #infopane h1 {
+          margin: 0;
+          font-size: 30px;
+          font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+          font-weight: normal;
+          text-shadow: 0 1px 0 rgba(255,255,255,1);
+        }
+        #infopane h2 {
+          font-size: 18px;
+          font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+          font-weight: normal;
+          color: #444444;
+          text-shadow: 0 1px 0 rgba(255,255,255,1);
+        }
+        #infopane p {
+          color: #444444;
+          text-shadow: 0 1px 0 rgba(255,255,255,1);
+        }
+        #infopane img {
+          border-radius: 15px;
+          -moz-border-radius: 15px;
+          -webkit-border-radius: 15px;
+          -moz-box-shadow: 0 1px 3px rgba(0,0,0,.9);
+          -webkit-box-shadow: 0 1px 3px rgba(0,0,0,.9);
+          box-shadow: 0 1px 3px rgba(0,0,0,.9);
+          margin: 20px 0;
+        }
+        .joinbtn {
+          text-align: center;
+        }
+          .joinbtn a {
+            display: inline-block;
+            font-size: 18px;
+            color: white;
+            -moz-border-radius: 15px;
+            -webkit-border-radius: 15px;
+            border-radius: 15px;
+            border: 1px solid #297205;
+            text-shadow: 0 1px 0 rgba(0,0,0,.4);
+            background: #276a05;
+            background: -moz-linear-gradient(90deg, #276a05, #36a300);
+            background: -webkit-gradient(linear, left bottom, left top, from(#276a05), to(#36a300));
+            -moz-box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 2px 10px rgba(0,0,0,.6);
+            -webkit-box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 2px 10px rgba(0,0,0,.6);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 2px 10px rgba(0,0,0,.6);
+            font-weight: bold;
+            padding: 3px 18px 5px;
+          }
+        
+        #infopane .empty {
+          background: url('../images/empty.png') no-repeat center top;
+          margin-top: 122px;
+          padding-top: 225px;
+          text-align: center;
+          color: #9da6ab;
+          text-shadow: 0 1px 0 rgba(255,255,255,.4);
+        }
+          #infopane .empty h1 {
+            font-size: 30px;
+            font-weight: bold;
+            color: #9da6ab;
+          }

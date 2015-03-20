@@ -1,0 +1,23 @@
+; $Id: avitamin.info,v 1.1.2.1 2010/06/19 16:29:51 finex Exp $ 
+name = A Vitamin
+description = Template A Vitamin
+version = 1.0
+core = 6.x
+engine = phptemplate
+
+regions[header]     = Header
+regions[preface]    = Preface
+regions[content]    = Content
+regions[postscript] = Postscript
+regions[right]      = Sidebar Right
+regions[left]       = Sidebar Left
+regions[footer]     = Footer
+
+stylesheets[all][] = "reset.css"
+stylesheets[all][] = "style.css"
+; Information added by drupal.org packaging script on 2010-09-27
+version = "6.x-1.6"
+core = "6.x"
+project = "avitamin"
+datestamp = "1285612558"
+

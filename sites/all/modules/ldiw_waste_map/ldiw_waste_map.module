@@ -1,0 +1,1333 @@
+<?php
+// $Id$
+
+DEFINE('LDIW_WASTE_MAP_DEFAULT_PHOTO_FIELDS',
+									'field_photo field_external_photo');
+DEFINE('LDIW_WASTE_MAP_DEFAULT_MINIMUM_INITIAL_ZOOM','5');
+DEFINE('LDIW_WASTE_MAP_WASTE_POINTS_CSV_VIEW_NAME',
+									'waste_map_geoclustering');
+DEFINE('LDIW_WASTE_MAP_WP_DESCRIPTION_MAX_LENGTH',2000);
+
+/**
+ * Implementation of hook_ctools_plugin_directory()
+ */
+function ldiw_waste_map_ctools_plugin_directory($module, $plugin) {
+  if ($module == 'openlayers' && $plugin == 'style_plugin') {
+    return 'plugins/style_plugin';
+  }
+}
+  
+/**
+ * Implementation of hook_ctools_plugin_api()
+ */
+function ldiw_waste_map_ctools_plugin_api($module, $api) {
+  if ($module == "openlayers") {
+    switch ($api) {
+      case 'openlayers_layers':
+        return array('version' => 1);
+      case 'openlayers_behaviors':
+        return array('version' => 1);
+    }
+  }
+  if ($module == "geoclustering_tree_params" &&
+								$api == "geoclustering_tree_params") {
+    return array('version' => 1);
+  }
+}
+
+/**
+ * Implementation of hook_geoclustering_tree_params()
+ */
+
+function ldiw_waste_map_geoclustering_tree_params()
+{
+	$tree_params=new stdClass();
+	$tree_params->name='ldiw_waste_map';
+	$tree_params->description='LDIW project Waste Map';
+	$tree_params->maxlevel=27;
+	$tree_params->api_version=1;
+	$tree_params->geofield_name='field_coords';
+	$tree_params->node_conditions=array('type' => 'waste_point',
+										'status' => 1);
+	$tree_params->summed_field_names=array();
+	$summed_fields=variable_get('ldiw_waste_map_composition_fields',
+																array());
+	$summed_fields['field_volume']=TRUE;
+	$summed_fields['field_nr_of_tires']=TRUE;
+	foreach (content_fields(NULL,'waste_point') as $fieldname => $field) {
+		if ($field['type_name'] == 'waste_point' &&
+									isset($summed_fields[$fieldname])) {
+			array_push($tree_params->summed_field_names,$fieldname);
+			}
+		}
+
+	return array($tree_params->name => $tree_params);
+	}
+
+/**
+ * Implementation of hook_openlayers_layer_types()
+ */
+function ldiw_waste_map_openlayers_layer_types() {
+  return array(
+    'ldiw_waste_map_layer_type_csv' => array(
+      'title' => t('CSV BBOX Vector layer'),
+      'description' => t('A Vector map that uses CSV ?BBOX=... protocol ' .
+					'to get features and uses OpenLayers BBOX Strategy.'),
+      'layer_type' => array(
+        'path' => drupal_get_path('module','ldiw_waste_map'),
+        'file' => 'csv_layer_type.inc',
+        'class' => 'ldiw_waste_map_layer_type_csv',
+        'parent' => 'openlayers_layer_type',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_openlayers_behaviors()
+ */
+function ldiw_waste_map_openlayers_behaviors()
+{
+	return array(
+		'ldiw_waste_map_behavior_addpointcontent' => array(
+			'title' => t('Add/Edit Point Content'),
+			'description' => t('Add/edit Drupal content nodes by ' .
+					'clicking on map and filling in node form in popup.'),
+			'type' => 'layer',
+			'path' => drupal_get_path('module','ldiw_waste_map'),
+			'file' => 'ldiw_waste_map_behavior_addpointcontent.inc',
+			'behavior' => array(
+				'class' => 'ldiw_waste_map_behavior_addpointcontent',
+				'parent' => 'openlayers_behavior',
+				),
+			),
+		'ldiw_waste_map_behavior_automaticpopup' => array(
+			'title' => t('Popup random feature on map load'),
+			'description' => t('Automatically open a popup of a random ' .
+							'feature on initial map load. ' .
+							'"Pop Up" behavior must also be enabled.'),
+			'type' => 'layer',
+			'path' => drupal_get_path('module','ldiw_waste_map'),
+			'file' => 'ldiw_waste_map_behavior_automaticpopup.inc',
+			'behavior' => array(
+				'class' => 'ldiw_waste_map_behavior_automaticpopup',
+				'parent' => 'openlayers_behavior',
+				),
+			),
+		);
+	}
+
+/**
+ * Implementation of hook_form_alter()
+ */
+function ldiw_waste_map_form_alter(&$form,$form_state,$form_id)
+{
+	if (strpos($form_id,'waste_point_node_form') === 0) {
+
+		if ($form_id != 'waste_point_node_form') {
+				// Hack to make waste_point_node_form_* form_id's to work
+				//   (necessary for modules/ldiw_api)
+				// Without this code they would fail, because
+				//   content_form_alter() does not recognise them. Here we
+				//   replicate content_form_alter() functionality.
+
+			$type=content_types($form['#node']->type);
+			module_load_include('inc','content','includes/content.node_form');
+			$form=array_merge($form,content_form($form,$form_state));
+			$form['#pre_render'][]='content_alter_extra_weights';
+			$form['#content_extra_fields']=$type['extra'];
+			}
+
+		formfilter_filter_form($form,array(
+				array('revision_information'),
+				array('body_field','format'),
+				array('author'),
+				array('options'),
+				array('comment_settings'),
+				array('menu'),
+				array('body_field','teaser_js'),
+				array('body_field','teaser_include'),
+				array('book'),
+				array('attachments'),
+				array('path'),
+				));
+
+		if (!empty($form['body_field'])) {
+			$form['body_field']['body']['#type']='textfield';
+			$form['body_field']['body']['#maxlength']=
+								LDIW_WASTE_MAP_WP_DESCRIPTION_MAX_LENGTH;
+			$form['body_field']['body']['#size']=41;
+			}
+
+		drupal_add_css(drupal_get_path('module','ldiw_waste_map') .
+														'/node-form.css');
+
+		$composition_fields=variable_get('ldiw_waste_map_composition_fields',
+																array());
+		$composition_weight=NULL;
+		foreach ($composition_fields as $key => $value) {
+			if (isset($form[$key]['#weight'])) {
+				if (!isset($composition_weight) ||
+							$form[$key]['#weight'] < $composition_weight) {
+					$composition_weight=$form[$key]['#weight'];
+					}
+				}
+			}
+
+		if (!empty($composition_fields)) {
+			if (variable_get('ldiw_waste_map_single_composition_value',FALSE)) {
+				$form['composition']=array(
+					'#type' => 'select',
+					'#title' => t('Composition'),
+					'#options' => array('' => ''),
+					'#default_value' => '',
+					);
+
+				$max_value=0;
+				foreach ($form as $key => $element) {
+					if (isset($composition_fields[$key])) {
+						$form['composition']['#options'][$key]=$element['#title'];
+
+						$value=(float)$element[0]['#default_value']['value'];
+						if ($max_value < $value) {
+							$max_value=$value;
+							$form['composition']['#default_value']=$key;
+							}
+
+						$form[$key]['#type']='hidden';
+						}
+					}
+
+				$form['#submit'][]=
+							'ldiw_waste_map_composition_singlevalue_submit';
+				}
+			else {
+				$form['composition']=array(
+						'#type' => 'fieldset',
+						'#title' => t('Composition percentages (in volume)'),
+						'#weight' => $composition_weight,
+						'#attributes' => array('class' => 'label-left-of-input-23em'),
+						);
+
+				foreach ($form as $key => $element) {
+					if (isset($composition_fields[$key])) {
+						$form['composition'][$key]=$element;
+						unset($form[$key]);
+						}
+					}
+				}
+			}
+
+		foreach (array('field_volume','field_diameter','field_nr_of_tires',
+									'body_field','composition') as $key) {
+			if (isset($form[$key])) {
+				$form[$key]['#prefix']='<span class="label-left-of-input">';
+				$form[$key]['#suffix']='</span>';
+				}
+			}
+
+		$form['#attributes']['class'].=' vertically-condensed-form';
+
+		unset($form['field_geo_areas']);
+		unset($form['field_geo_areas_json']);
+		unset($form['book']['plid']);
+		unset($form['book']['pick-book']);
+		unset($form['attachments']['wrapper']['new']['attach']);
+		unset($form['buttons']['preview']);
+
+		if (module_exists('better_formats')) {
+
+				// Ugly hack workaround for Better Formats' behaviour where
+				//   it sets $form['body_field']['format'] anew, without
+				//   caring for any of its previous contents
+
+			$form['body_field2']=$form['body_field'];
+			unset($form['body_field']);
+			}
+		}
+	}
+
+/***************************************************************************/
+/**************                                               **************/
+/************** ldiw_waste_map_waste_point_node_form_submit() **************/
+/**************                                               **************/
+/***************************************************************************/
+
+function ldiw_waste_map_composition_singlevalue_submit($form,&$form_state)
+{
+	$composition=empty($form_state['values']['composition']) ? '' :
+									$form_state['values']['composition'];
+	$composition_fields=variable_get('ldiw_waste_map_composition_fields',
+																array());
+	foreach ($form as $key => $element) {
+		if (isset($composition_fields[$key])) {
+			$form_state['values'][$key][0]['value']=
+										($key == $composition) ? 100 : 0;
+			}
+		}
+	}
+
+/**
+ * Implementation of hook_menu()
+ */
+
+function ldiw_waste_map_menu()
+{
+	return array(
+		file_directory_path() . '/ldiw_waste_map/waste_point_icon' => array(
+			'file' =>
+				'plugins/style_plugin/ldiw_waste_map_point_style_plugin.inc',
+			'page callback' => 'ldiw_waste_map_waste_point_icon',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_waste_map/photos_ajax/%' => array(
+			'page callback' => 'ldiw_waste_map_photos_ajax',
+			'access callback' => TRUE,
+			'page arguments' => array(2),
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_waste_map/photo/%/%' => array(
+			'page callback' => 'ldiw_waste_map_photo',
+			'access callback' => TRUE,
+			'page arguments' => array(2,3),
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_waste_map/upload_photo_ajax' => array(
+			'page callback' => 'ldiw_waste_map_upload_photo_ajax',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'api/waste_points.csv' => array(
+			'page callback' => 'ldiw_waste_map_waste_points',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_waste_map/smartphone_app_install' => array(
+			'page callback' => 'ldiw_waste_map_smartphone_app_install',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+
+		// Admin pages
+		'admin/settings/ldiw_waste_map' => array(
+			'title' => 'LDIW Waste Map',
+			'description' => 'Configure the LDIW Waste Map.',
+			'file' => 'ldiw_waste_map.admin.inc',
+			'page callback' => 'drupal_get_form',
+			'page arguments' => array('ldiw_waste_map_admin_settings'),
+			'access arguments' => array('administer site configuration'),
+			),
+		'admin/settings/ldiw_waste_map/settings' => array(
+			'title' => 'Settings',
+			'type' => MENU_DEFAULT_LOCAL_TASK,
+			'weight' => 0,
+			),
+		'admin/settings/ldiw_waste_map/geo_areas' => array(
+			'title' => 'Geographic Areas',
+			'description' => 'Administer Geographic Areas.',
+			'file' => 'ldiw_waste_map.admin.inc',
+			'page callback' => 'drupal_get_form',
+			'page arguments' => array('ldiw_waste_map_admin_geo_areas'),
+			'access arguments' => array('administer site configuration'),
+			'type' => MENU_LOCAL_TASK,
+			'weight' => 1,
+			),
+		);
+	}
+
+/***************************************************************************/
+/******************************              *******************************/
+/****************************** hook_theme() *******************************/
+/******************************              *******************************/
+/***************************************************************************/
+
+function ldiw_waste_map_theme()
+{
+	return array('ldiw_waste_map_admin_settings' => array(
+						'arguments' => array('form' => NULL),
+						'file' => 'ldiw_waste_map.admin.inc',
+						),
+				'ldiw_waste_map_formatter_as_link' => array(
+						'arguments' => array('element' => NULL),
+						'file' => 'ldiw_waste_map.theme.inc',
+						),
+				'ldiw_waste_map_formatter_as_twitter_link' => array(
+						'arguments' => array('element' => NULL),
+						'file' => 'ldiw_waste_map.theme.inc',
+						),
+				'ldiw_waste_map_formatter_as_youtube_link' => array(
+						'arguments' => array('element' => NULL),
+						'file' => 'ldiw_waste_map.theme.inc',
+						));
+	}
+
+/***************************************************************************/
+/**************                                               **************/
+/************** Implementation of hook_openlayers_map_alter() **************/
+/**************                                               **************/
+/***************************************************************************/
+
+function ldiw_waste_map_openlayers_map_alter(&$map)
+{
+	if (isset($map['behaviors']['ldiw_waste_map_behavior_addpointcontent'])) {
+		drupal_add_css(drupal_get_path('module','ldiw_waste_map') .
+														'/node-form.css');
+
+		//!!! Move this functionality to a behavior?
+		$geoip_result=geoip_city();
+		if ($geoip_result && isset($geoip_result->longitude) &&
+										isset($geoip_result->latitude)) {
+			$map['center']['initial']['centerpoint']=
+									$geoip_result->longitude . ', ' .
+									$geoip_result->latitude;
+
+			$geoclustering_params=ldiw_waste_map_geoclustering_tree_params();
+			$geoclustering_params=$geoclustering_params['ldiw_waste_map'];
+
+			$resolutions=openlayers_get_resolutions('4326');
+
+				/***********************************/
+				/*****                         *****/
+				/***** Set $map_size_in_pixels *****/
+				/*****                         *****/
+				/***********************************/
+
+			$map_size_in_pixels=array(0,0);
+			foreach (array('width','height') as $idx => $key) {
+				if (isset($map[$key]) && strpos($map[$key],'%') === FALSE) {
+					$map_size_in_pixels[$idx]=(int)$map[$key];
+					}
+				}
+			if ($map_size_in_pixels[0] <= 0) {
+				$map_size_in_pixels[0]=$map_size_in_pixels[1];
+				}
+			if ($map_size_in_pixels[1] <= 0) {
+				$map_size_in_pixels[1]=$map_size_in_pixels[0];
+				}
+			if ($map_size_in_pixels[0] <= 0) {
+				$map_size_in_pixels=array(500,500);
+				}
+
+				/*********************************************************/
+				/*****                                               *****/
+				/***** Loop over zoom levels and select the best one *****/
+				/*****                                               *****/
+				/*********************************************************/
+
+			$ideal_nr_of_nodes=50;
+
+			$last_nr_of_nodes=0;
+			$min_zoom=(int)variable_get(
+								'ldiw_waste_map_minimum_initial_zoom',
+								LDIW_WASTE_MAP_DEFAULT_MINIMUM_INITIAL_ZOOM);
+			for ($zoom=count($resolutions)-1;$zoom > $min_zoom;$zoom--) {
+				$delta=array($resolutions[$zoom]*$map_size_in_pixels[0] / 2,
+							 $resolutions[$zoom]*$map_size_in_pixels[1] / 2);
+				$nr_of_nodes=geoclustering_get_approximate_nr_of_nodes(
+							array(	$geoip_result->longitude-$delta[0],
+									$geoip_result->latitude-$delta[1],
+									$geoip_result->longitude+$delta[0],
+									$geoip_result->latitude+$delta[1]),
+							$geoclustering_params);
+				if ($nr_of_nodes > $ideal_nr_of_nodes) {
+					if ($last_nr_of_nodes &&
+								$ideal_nr_of_nodes-$last_nr_of_nodes <
+										$nr_of_nodes - $ideal_nr_of_nodes) {
+						$zoom++;
+						}
+					break;
+					}
+
+				$last_nr_of_nodes=$nr_of_nodes;
+				}
+
+			$map['center']['initial']['zoom']=$zoom;
+			}
+		}
+
+		// Remove Google layer if Google Maps API key is not configured
+
+	if (!variable_get('openlayers_layers_google_api',
+								variable_get('googlemap_api_key',''))) {
+		unset($map['layers']['google_normal']);
+		if ($map['default_layer'] == 'google_normal') {
+			reset($map['layers']);
+			$map['default_layer']=key($map['layers']);
+			}
+		}
+	}
+
+/***************************************************************************/
+/**********************                              ***********************/
+/********************** ldiw_waste_map_list_photos() ***********************/
+/**********************                              ***********************/
+/***************************************************************************/
+
+function ldiw_waste_map_list_photos(&$node,$get_local_image_sizes=TRUE)
+{
+	$fieldnames=explode(' ',variable_get(
+						'ldiw_waste_map_photo_field_names',
+						LDIW_WASTE_MAP_DEFAULT_PHOTO_FIELDS));
+	$data=array();
+	foreach ($fieldnames as $fieldname) {
+		foreach ($node->{$fieldname} as $value) {
+			$id=NULL;
+			$serialized_data=array();
+			if (!empty($value['fid'])) {
+				$id=$value['fid'];
+				}
+			elseif (!empty($value['value'])) {
+				$info=@unserialize($value['value']);
+				if ($info && !empty($info['url'])) {
+					$id=$value['value'];
+					$serialized_data=$info;
+					}
+				}
+			if ($get_local_image_sizes && !empty($value['filepath'])) {
+				$info=@getimagesize($value['filepath']);
+				if ($info) {
+					$serialized_data['width'] =$info[0];
+					$serialized_data['height']=$info[1];
+					}
+				}
+			if (isset($id)) {
+				$data[]=array(	base64_encode(substr(md5($id),0,3)),
+								$value,
+								$serialized_data);
+				}
+			}
+		}
+
+	return $data;
+	}
+
+/***************************************************************************/
+/*************                                                 *************/
+/************* ldiw_waste_map_compute_photos_id_width_height() *************/
+/*************                                                 *************/
+/***************************************************************************/
+
+function ldiw_waste_map_compute_photos_id_width_height(&$node)
+{
+	$data=array();
+	foreach (ldiw_waste_map_list_photos($node) as $photo) {
+		list($id,,$serialized_data)=$photo;
+		$width =empty($serialized_data['width'] ) ? 0 :
+												$serialized_data['width'];
+		$height=empty($serialized_data['height']) ? 0 :
+												$serialized_data['height'];
+		$data[]="$id:$width:$height";
+		}
+	return implode(' ',$data);
+	}
+
+/***************************************************************************/
+/**********************                              ***********************/
+/********************** ldiw_waste_map_photos_ajax() ***********************/
+/**********************                              ***********************/
+/***************************************************************************/
+
+function ldiw_waste_map_photos_ajax($node_id)
+{
+	$node=node_load($node_id);
+	if (!$node || $node->type != 'waste_point') {
+		drupal_not_found();
+		return;
+		}
+
+	$data=array();
+	foreach (ldiw_waste_map_list_photos($node,FALSE) as $photo) {
+		list($id,,$serialized_data)=$photo;
+		if (!empty($serialized_data)) {
+			$data[$id]=$serialized_data;
+			}
+		}
+
+	print json_encode($data);
+	}
+
+/***************************************************************************/
+/*************************                        **************************/
+/************************* ldiw_waste_map_photo() **************************/
+/*************************                        **************************/
+/***************************************************************************/
+
+function ldiw_waste_map_photo($node_id,$photo_id)
+{
+	$node=node_load($node_id);
+	if (!$node || $node->type != 'waste_point') {
+		drupal_not_found();
+		return;
+		}
+
+	foreach (ldiw_waste_map_list_photos($node,FALSE) as $photo) {
+		list($id,$value,$serialized_data)=$photo;
+		if ($id == $photo_id) {
+			if (!empty($value['filepath'])) {
+				file_download($value['filepath']);	// This does not return
+				}
+			if (!empty($serialized_data['url'])) {
+				session_write_close();
+				header('Location: ' . $serialized_data['url'],TRUE,302);
+				exit();
+				}
+			}
+		}
+
+	drupal_not_found();
+	}
+
+/***************************************************************************/
+/***************                                             ***************/
+/*************** ldiw_waste_map_prepare_adding_waste_point() ***************/
+/***************                                             ***************/
+/***************************************************************************/
+
+function ldiw_waste_map_prepare_adding_waste_point(&$coords,$id=FALSE)
+{
+	global $user;
+
+	if ($id === FALSE && isset($coords[0]) && isset($coords[1])) {
+		$db_info=content_database_info(
+							content_fields('field_coords','waste_point'));
+		$geo_handler=geo_load(array('table_name' => $db_info['table']));
+
+		$distance_threshold_meters=50;
+		$earth_circumference_meters=40030081;
+		$lat_tolerance=360 * $distance_threshold_meters /
+											$earth_circumference_meters;
+		$lon_tolerance=$lat_tolerance / max(0.001,cos(deg2rad($coords[1])));
+
+		$bbox_sql=geoclustering_get_bbox_sql($geo_handler,
+				array(	$coords[0]-$lon_tolerance,$coords[1]-$lat_tolerance,
+						$coords[0]+$lon_tolerance,$coords[1]+$lat_tolerance));
+
+		$distance_query=$geo_handler->distance($geo_handler,
+									"POINT(${coords[0]} ${coords[1]})");
+		$query="SELECT nid FROM {" . $db_info['table'] . "} " .
+						"WHERE $distance_query < %f AND ${bbox_sql[0]} " .
+						"ORDER BY $distance_query DESC LIMIT 1";
+		$row=db_fetch_array(db_query($query,array_merge(
+						array($distance_threshold_meters),$bbox_sql[1])));
+		if ($row) {
+			$id=$row['nid'];
+			}
+		}
+
+	$node=($id !== FALSE) ? @node_load(array('nid' => $id)) :	// This argument style does not use node cache
+									(object)array('type' => 'waste_point');
+	$node->uid=$user->uid;
+	$node->name=$user->name;
+
+		/***********************/
+		/*****             *****/
+		/***** Set lon/lat *****/
+		/*****             *****/
+		/***********************/
+
+	if ($id !== FALSE) {
+		$prev_coords=geoclustering_extract_coords_from_node(
+													$node,'field_coords');
+		if (!isset($coords[0])) {
+			$coords[0]=$prev_coords[0];
+			}
+		if (!isset($coords[1])) {
+			$coords[1]=$prev_coords[1];
+			}
+
+		if ($coords === $prev_coords) {
+			$coords=FALSE;
+			}
+		}
+
+	$form_state=array();
+	$form_state['values']['op']=t('Save');
+
+	if ($coords !== FALSE && isset($coords[0]) && isset($coords[1])) {
+		$form_state['values']['field_coords'][0]['geo']=
+							array('lon' => $coords[0],'lat' => $coords[1]);
+		}
+
+	return array($node,$form_state);
+	}
+
+/***************************************************************************/
+/****************                                          *****************/
+/**************** ldiw_waste_map_submit_waste_point_form() *****************/
+/****************                                          *****************/
+/***************************************************************************/
+
+function ldiw_waste_map_submit_waste_point_form($node,$form_state,
+													$file_fids=array())
+{
+	if (function_exists('_element_info')) {	// Workaround for Geo bug http://drupal.org/node/1059916
+		module_implements('elements',FALSE,TRUE);
+		_element_info('',TRUE);
+		}
+
+	$prev_vid=isset($node->vid) ? $node->vid : null;
+	module_load_include('inc','node','node.pages');
+
+	$form_id='waste_point_node_form';
+	static $forms_submitted=0;
+	if ($forms_submitted) {
+		$form_id.="_$forms_submitted";
+		}
+	$forms_submitted++;
+	@drupal_execute($form_id,$form_state,$node);
+
+	foreach ($file_fids as $fid) {
+		field_file_load($fid,TRUE);	// Reload file cache; otherwise file is not found if "FileField Paths" module is used
+		}
+
+	$success=FALSE;
+	if (isset($form_state['nid'])) {
+		$node=@node_load(array('nid' => $form_state['nid']));	// This argument style does not use node cache
+		$success=(is_null($prev_vid) || $node->vid != $prev_vid);
+		}
+
+	$messages=drupal_get_messages();
+
+	if ($success) {
+		return $node;
+		}
+
+	if (!empty($messages['error'])) {
+		return strip_tags(implode(';',$messages['error']));
+		}
+	return "Unknown drupal_execute() error";
+	}
+
+/***************************************************************************/
+/******************************              *******************************/
+/****************************** hook_forms() *******************************/
+/******************************              *******************************/
+/***************************************************************************/
+
+function ldiw_waste_map_forms($form_id)
+{
+	$forms=array();
+	if (strpos($form_id,'waste_point_node_form_') === 0) {
+		$forms[$form_id]=array('callback' => 'node_form');
+		}
+	return $forms;
+	}
+
+/***************************************************************************/
+/****************                                          *****************/
+/**************** ldiw_waste_map_get_photo_upload_fields() *****************/
+/****************                                          *****************/
+/***************************************************************************/
+
+function ldiw_waste_map_get_photo_upload_fields()
+{
+	$fieldnames=explode(' ',variable_get(
+						'ldiw_waste_map_photo_field_names',
+						LDIW_WASTE_MAP_DEFAULT_PHOTO_FIELDS));
+	$data=array();
+	foreach ($fieldnames as $fieldname) {
+		$fieldinfo=content_fields($fieldname,'waste_point');
+		if (!empty($fieldinfo) && $fieldinfo['type'] == 'filefield') {
+			for ($i=0;$i < max(1,$fieldinfo['multiple']);$i++) {
+				$data[]=array($fieldname,$i);
+				}
+			}
+		}
+
+	return $data;
+	}
+
+/***************************************************************************/
+/*******************                                     *******************/
+/******************* _ldiw_waste_map_decode_exif_coord() *******************/
+/*******************                                     *******************/
+/***************************************************************************/
+
+function _ldiw_waste_map_decode_exif_coord($coord,$set_negative)
+{
+	$value=0;
+	$divisor=1;
+	foreach (array_slice($coord,0,3) as $val) {
+		$parts=explode('/',$val);
+		$val=$parts ? floatval($parts[0]) : 0;
+		if (count($parts) >= 2) {
+			$val/=floatval($parts[1]);
+			}
+		$value+=$val / $divisor;
+		$divisor*=60.0;
+		}
+	return $set_negative ? -$value : $value;
+	}
+
+/***************************************************************************/
+/*******************                                    ********************/
+/******************* ldiw_waste_map_upload_photo_ajax() ********************/
+/*******************                                    ********************/
+/***************************************************************************/
+
+function ldiw_waste_map_upload_photo_ajax()
+{
+	$retval=array();
+	$error_text=NULL;
+
+	$photo_fields=ldiw_waste_map_get_photo_upload_fields();
+	if (!$error_text && empty($photo_fields)) {
+		$error_text=t("No photo fields defined for Waste point");
+		}
+	else {
+		$photo_field=$photo_fields[0];
+		}
+
+	if (!empty($_POST['fid'])) {
+		$fileinfo=field_file_load($_POST['fid']);
+		if (empty($fileinfo['fid']) || empty($fileinfo['filepath'])) {
+			$error_text=t("field_file_load() error");
+			}
+		}
+	else {
+		if (isset($_FILES['qqfile']['tmp_name'])) {
+			$fname=$_FILES['qqfile']['tmp_name'];
+			}
+		else {
+			$fname=file_destination(file_create_path(
+					file_directory_temp() . '/' . time()),FILE_EXISTS_RENAME);
+			$fp=fopen($fname,'w');
+
+			if ($fp === FALSE) {
+				$error_text=t('Server error in writing temp file.');
+				}
+			else {
+				$input=fopen('php://input','r');
+				stream_copy_to_stream($input,$fp);
+				fclose($input);
+				fclose($fp);
+				}
+			}
+
+		if (!$error_text && !@getimagesize($fname)) {
+			$error_text=t("Uploaded file is not an image");
+			}
+
+		if (!$error_text) {
+			$fileinfo=field_file_save_file($fname,array(),
+						filefield_widget_file_path(content_fields(
+											$photo_field[0],'waste_point')));
+			if (empty($fileinfo['fid']) || empty($fileinfo['filepath'])) {
+				$error_text=t("field_file_save_file() error");
+				}
+			}
+
+		@unlink($fname);
+		}
+
+	if (!$error_text) {
+		$coords=array(NULL,NULL);
+
+		if (isset($_POST['lon']) && isset($_POST['lat'])) {
+
+				//!!! Support other coordinate formats as well
+
+			$sscanf=sscanf($_POST['lon'],'%g%s');
+			$coords[0]=isset($sscanf[1]) ? NULL : $sscanf[0];
+
+			$sscanf=sscanf($_POST['lat'],'%g%s');
+			$coords[1]=isset($sscanf[1]) ? NULL : $sscanf[0];
+
+			if (!isset($coords[0]) || !isset($coords[1])) {
+				$error_text=t('Unrecognized coordinate format. Please ' .
+					'write coordinates in decimal degrees, like "-70.221"');
+				}
+			}
+		else {
+			$exif=@exif_read_data($fileinfo['filepath']);
+			if (!empty($exif['GPSLatitude']) &&
+										!empty($exif['GPSLatitudeRef']) &&
+					!empty($exif['GPSLongitude']) &&
+										!empty($exif['GPSLongitudeRef'])) {
+				$coords=array(	_ldiw_waste_map_decode_exif_coord(
+											$exif['GPSLongitude'],
+											$exif['GPSLongitudeRef'] == 'W'),
+								_ldiw_waste_map_decode_exif_coord(
+											$exif['GPSLatitude'],
+											$exif['GPSLatitudeRef'] == 'S'));
+				}
+			}
+
+		if (!$error_text && isset($coords[0]) && isset($coords[1])) {
+			$retval['lon']=$coords[0];
+			$retval['lat']=$coords[1];
+
+			list($node,$form_state)=
+						ldiw_waste_map_prepare_adding_waste_point($coords);
+			$form_state['values'][$photo_field[0]][$photo_field[1]]=$fileinfo;
+
+			$node_or_errormsg=ldiw_waste_map_submit_waste_point_form(
+								$node,$form_state,array($fileinfo['fid']));
+
+			if (!is_object($node_or_errormsg)) {
+				$error_text=$node_or_errormsg;
+				$retval['missing_coords_fid']=$fileinfo['fid'];
+				}
+			}
+		else {
+			$retval['missing_coords_fid']=$fileinfo['fid'];
+			}
+		}
+
+	if (!empty($error_text)) {
+		$retval['error']=$error_text;
+		}
+	else {
+		$retval['success']=true;
+		}
+
+	print htmlspecialchars(json_encode($retval),ENT_NOQUOTES);
+	}
+
+/***************************************************************************/
+/****************************                  *****************************/
+/**************************** hook_views_api() *****************************/
+/****************************                  *****************************/
+/***************************************************************************/
+
+function ldiw_waste_map_views_api()
+{
+	return array('api' => 2);
+	}
+
+/***************************************************************************/
+/*************************                         *************************/
+/************************* hook_views_data_alter() *************************/
+/*************************                         *************************/
+/***************************************************************************/
+
+function ldiw_waste_map_views_data_alter(&$data)
+{
+	$field_tables=array();
+	foreach (content_fields(NULL,'waste_point') as $field) {
+		//!!! Perhaps restrict CCK types to number or text? field_photos_id_width_height_value puhul $field['type']=='computed', and handler on ikka content_handler_field_multiple
+
+		if ($field['type_name'] == 'waste_point' && !$field['multiple']) {
+			$db_info=content_database_info($field);
+			if (isset($db_info['table']) &&
+						isset($db_info['columns']['value']['column']) &&
+						count($db_info['columns']) == 1) {
+				$field_tables[$db_info['columns']['value']['column']]=
+														$db_info['table'];
+				}
+			}
+		}
+
+	foreach ($data as $table_key => $table) {
+		foreach (array_intersect_key($table,$field_tables) as
+													$fieldname => $field) {
+			if (isset($field['field']['table']) &&
+					$field['field']['table'] == $field_tables[$fieldname] &&
+					isset($field['field']['handler']) && 
+					$field['field']['handler'] ==
+										'content_handler_field_multiple') {
+				$data[$table_key][$fieldname]['field']['handler']=
+										'content_handler_field_optimized';
+				}
+			}
+		}
+	}
+
+/***************************************************************************/
+/**********************                               **********************/
+/********************** ldiw_waste_map_waste_points() **********************/
+/**********************                               **********************/
+/***************************************************************************/
+
+function ldiw_waste_map_waste_points()
+{
+	$view_arguments=array(NULL);
+
+	if (!empty($_REQUEST['BBOX'])) {
+		$bbox=explode(',',$_REQUEST['BBOX']);
+		if (count($bbox) != 4) {	
+			drupal_set_header('HTTP/1.1 400 Invalid BBOX argument value');
+			exit();
+			}
+		$view_arguments[]="POLYGON(($bbox[0] $bbox[1],$bbox[2] $bbox[1]," . 
+				"$bbox[2] $bbox[3],$bbox[0] $bbox[3],$bbox[0] $bbox[1]))";
+		}
+
+	$view=views_get_view(LDIW_WASTE_MAP_WASTE_POINTS_CSV_VIEW_NAME);
+	if (!$view) {
+		return drupal_not_found();
+		}
+
+	if (!empty($_REQUEST['max_results'])) {
+		$max_results=0 + $_REQUEST['max_results'];
+		if (is_int($max_results) && $max_results) {
+			$view->display['default']->display_options['items_per_page']=
+															$max_results;
+			}
+		}
+
+	module_load_include('inc','content','includes/views/content.views');
+
+	if (!empty($_REQUEST['nearest_points_to'])) {
+		$nearest_points_to=explode(',',$_REQUEST['nearest_points_to']);
+		if (count($nearest_points_to) != 2) {	
+			drupal_set_header('HTTP/1.1 400 Invalid nearest_points_to ' .
+						'argument value (must be "lat_float,lon_float")');
+			exit();
+			}
+
+		$nearest_points_to[0]=(float)$nearest_points_to[0];
+		$nearest_points_to[1]=(float)$nearest_points_to[1];
+
+		$view_arguments[0]=-2;	// Set geoclustering_level to "nodes"
+
+			//!!! To improve DB query performance with 50k+ points, try
+			//		this query iteratively with different BBOXes, and also
+			//		add a distance filter corresponding to this BBOX
+
+		$view->add_item('default','sort',$view->display['default']->
+				display_options['arguments']['field_coords_geo']['table'],
+				'field_coords_geo',
+				array('order' => 'ASC',
+						'function' => 'distanceSpheroid',
+						'target' => array('geo_latlon' =>
+									array(	'lon' => $nearest_points_to[0],
+											'lat' => $nearest_points_to[1])),
+						'input' => 'geo_latlon',
+						)
+				);
+
+		$view->add_item('default','field',$view->display['default']->
+				display_options['arguments']['field_coords_geo']['table'],
+				'field_coords_geo',
+				array('label' => 'distance_meters',
+						'alter' => array('trim' => 1,
+										'word_boundary' => 0,
+										'max_length' => 8,
+										'ellipsis' => 0),
+						'function' => 'distanceSpheroid',
+						'target' => array('geo_latlon' =>
+									array(	'lon' => $nearest_points_to[0],
+											'lat' => $nearest_points_to[1])),
+						'input' => 'geo_latlon',
+						)
+				);
+		}
+
+	$fields_to_omit=explode(' ',variable_get(
+								'ldiw_waste_map_photo_field_names',
+								LDIW_WASTE_MAP_DEFAULT_PHOTO_FIELDS));
+	$fields_to_omit[]='field_geo_areas_json';
+	$fields_to_omit[]='field_volume';
+
+	foreach (content_fields(NULL,'waste_point') as $fieldname => $field) {
+		if ($field['type_name'] == 'waste_point' &&
+					in_array($field['type'],
+						array('number_float','number_integer','text')) &&
+					!in_array($fieldname,$fields_to_omit)) {
+			$db_info=content_database_info($field);
+			$view->add_item('default','field',
+					content_views_tablename($field),
+					$db_info['columns']['value']['column'],
+					array('format' => 'unformatted',
+						'label_type' => 'custom',
+						'label' => preg_replace('/^field_/','',$fieldname)));
+			}
+		}
+
+	//!!! Implement other output formats besides CSV
+
+	return $view->execute_display('feed_1',$view_arguments);
+	}
+
+/***************************************************************************/
+/***********                                                    ************/
+/*********** ldiw_waste_map_preprocess_views_bonus_export_csv() ************/
+/***********                                                    ************/
+/***************************************************************************/
+
+function ldiw_waste_map_preprocess_views_bonus_export_csv(&$vars)
+{
+	if ($vars['view']->name == LDIW_WASTE_MAP_WASTE_POINTS_CSV_VIEW_NAME) {
+		foreach ($vars['header'] as $key => $label) {
+			$vars['header'][$key]=trim($label,'"');
+			}
+		}
+	}
+
+/***************************************************************************/
+/******************                                      *******************/
+/****************** _ldiw_waste_map_geo_area_hierarchy() *******************/
+/******************                                      *******************/
+/***************************************************************************/
+
+function _ldiw_waste_map_geo_area_hierarchy()
+{
+	static $retval=NULL;
+	if (!isset($retval)) {
+		$retval=array();
+		$nodes=array();
+
+		$r=db_query("SELECT nid FROM {node} WHERE type='geo_hierarchy_level'");
+		while ($row=db_fetch_object($r)) {
+			$node=node_load($row->nid);
+			$nodes[$row->nid]=$node;
+
+			if (!empty($node->field_waste_point_display_label[0]['value'])) {
+				$retval[$node->field_waste_point_display_label[0]['value']]=
+						array(array($row->nid,!empty($node->
+										field_display_parent[0]['value'])));
+				}
+			}
+
+		foreach ($retval as $key => $value) {
+			$nid=$value[0][0];
+			while (isset($nodes[$nid]->field_parent_level[0]['nid'])) {
+				$nid=$nodes[$nid]->field_parent_level[0]['nid'];
+				array_push($retval[$key],
+							array($nid,!empty($nodes[$nid]->
+										field_display_parent[0]['value'])));
+				}
+			}
+		}
+
+	return $retval;
+	}
+
+/***************************************************************************/
+/*********************                                 *********************/
+/********************* _ldiw_waste_map_set_geo_areas() *********************/
+/*********************                                 *********************/
+/***************************************************************************/
+
+function _ldiw_waste_map_set_geo_areas($coords,&$node)
+{
+	$modified=FALSE;
+	$geo_handler=geo_load(array('name' => 'field_geo'));
+
+	$areas_table_name=$geo_handler->tableName(TRUE);
+	$geo_handler->setTableName("a",TRUE);
+	$r=db_query("SELECT a.field_hierarchy_level_nid AS level_nid," .
+						"a.nid AS area_nid,n.title AS area_title " .
+					"FROM $areas_table_name AS a " .
+							"INNER JOIN {node} AS n ON (n.nid=a.nid) " .
+					"WHERE " . $geo_handler->intersects($geo_handler,
+							"POINT(${coords[0]} ${coords[1]})") . " " .
+					"ORDER BY a.nid");
+
+	$field_geo_areas=array();
+
+	$levels=array();
+	while ($row=db_fetch_object($r)) {
+		if (!isset($levels[$row->level_nid])) {
+			$levels[$row->level_nid]=$row;
+			$field_geo_areas[]=array('nid' => $row->area_nid);
+			}
+		}
+
+	$prev_areas=array();
+	if (!empty($node->field_geo_areas)) {
+		foreach ($node->field_geo_areas as $entry) {
+			if (isset($entry['nid'])) {
+				$prev_areas[]=$entry;
+				}
+			}
+		}
+
+	if ($field_geo_areas != $prev_areas) {
+		$node->field_geo_areas=$field_geo_areas;
+		$modified=TRUE;
+		}
+
+	$object=array();
+	foreach (_ldiw_waste_map_geo_area_hierarchy() as
+											$title => $hierarchy_levels) {
+		$area_titles=array();
+		foreach ($hierarchy_levels as $level) {
+			list($level_nid,$display_parent)=$level;
+			if (isset($levels[$level_nid])) {
+				$area_titles[]=$levels[$level_nid]->area_title;
+				if (!$display_parent) {
+					break;
+					}
+				}
+			}
+
+		if (!empty($area_titles)) {
+			$object[$title]=implode(', ',$area_titles);
+			}
+		}
+
+	$json=empty($object) ? NULL : json_encode($object);
+	if ((empty($node->field_geo_areas_json[0]['value']) && !empty($json)) ||
+						$node->field_geo_areas_json[0]['value'] !== $json) {
+		$node->field_geo_areas_json=array(0 => array('value' => $json));
+		$modified=TRUE;
+		}
+
+	return $modified;
+	}
+
+/***************************************************************************/
+/*****************************                ******************************/
+/***************************** hook_nodeapi() ******************************/
+/*****************************                ******************************/
+/***************************************************************************/
+
+function ldiw_waste_map_nodeapi(&$node,$op)
+{
+	if ($node->type == 'waste_point' && $op == 'presave') {
+		$node->revision=1;      // Force creation of new revision
+
+		$coords=geoclustering_extract_coords_from_node($node,'field_coords');
+
+		if (empty($node->nid) || $coords !=
+						geoclustering_extract_coords_from_node(
+									node_load($node->nid),'field_coords')) {
+			_ldiw_waste_map_set_geo_areas($coords,$node);
+			}
+		}
+	}
+
+/***************************************************************************/
+/*****************                                         *****************/
+/***************** ldiw_waste_map_smartphone_app_install() *****************/
+/*****************                                         *****************/
+/***************************************************************************/
+
+function ldiw_waste_map_smartphone_app_install()
+{
+	$user_agent=isset($_SERVER['HTTP_USER_AGENT']) ?
+										$_SERVER['HTTP_USER_AGENT'] : '';
+	$redirect_url=FALSE;
+	$smartphone_type=FALSE;
+	if (stristr($user_agent,'Android') !== FALSE) {
+		$smartphone_type='android';
+		$redirect_url='market://details?id=com.letsdoitworld.wastemapper';
+		}
+	elseif (stristr($user_agent,'(iPhone;') !== FALSE) {
+		$smartphone_type='iphone';
+		$redirect_url='http://itunes.apple.com/us/app/lets-do-it-world/id443259456?mt=8&ls=1';
+		}
+
+	$log=array('time' => gmdate('Y-m-d H:i:s e'));
+	if ($user_agent != '') {
+		$log['user_agent']=$user_agent;
+		}
+
+	$geoip_result=geoip_city();
+	if (isset($geoip_result->country_code)) {
+		$log['country_code']=$geoip_result->country_code;
+		}
+
+	if ($smartphone_type !== FALSE) {
+		$log['smartphone_type']=$smartphone_type;
+		}
+
+	drupal_write_record('ldiw_waste_map_smartphone_install_visitors',$log);
+
+	if ($redirect_url !== FALSE) {
+		header('Location: ' . $redirect_url);
+		exit();
+		}
+
+	drupal_set_title('Not ready for your phone yet');
+
+	return <<<EOT
+<h1>Waste mapping application is not ready for your phone yet.</h1>
+Our smartphone application is currently available only for
+<a href="http://www.andro-phones.com/">smartphones based on the 
+Android operating system</a>, and iPhone. Stay tuned for future releases!
+<p><br>
+If you are a developer willing to help by coding additional platforms,
+let us know!
+EOT;
+	}
+
+/***************************************************************************/
+/*********************                                 *********************/
+/********************* ldiw_waste_map_country_status() *********************/
+/*********************                                 *********************/
+/***************************************************************************/
+
+function ldiw_waste_map_country_status($country_code)
+{
+	$status_db_info=content_database_info(
+							content_fields('field_co_status_quo','contact'));
+	$country_db_info=content_database_info(
+							content_fields('field_country_code','contact'));
+	$r=db_query("SELECT s.field_co_status_quo_value AS status " .
+					"FROM {node} AS n " .
+					"INNER JOIN {" . $status_db_info['table'] . "} AS s " .
+							"ON (s.nid=n.nid AND s.vid=n.vid) " .
+					"INNER JOIN {" . $country_db_info['table'] . "} AS c " .
+							"ON (c.nid=n.nid AND c.vid=n.vid) " .
+					"WHERE c.field_country_code_value='%s'",
+				strtoupper($country_code));
+
+	$status_priorities=array('notcontacted','noclean','contacted',
+										'nodecision','clean','willclean');
+	$best_idx=0;
+	while ($row=db_fetch_object($r)) {
+		$idx=array_search($row->status,$status_priorities);
+		if ($idx !== FALSE && $idx > $best_idx) {
+			$best_idx=$idx;
+			}
+		}
+	$status=$status_priorities[$best_idx];
+
+	$status_texts=content_allowed_values(content_fields(
+										'field_co_status_quo','contact'));
+	return array($status,(empty($status_texts[$status]) || $best_idx <= 1) ?
+											'' : $status_texts[$status]);
+	}
+
+/***************************************************************************/
+/***********************                             ***********************/
+/*********************** hook_field_formatter_info() ***********************/
+/***********************                             ***********************/
+/***************************************************************************/
+
+function ldiw_waste_map_field_formatter_info()
+{
+	return array('as_link' => array('label' => t('As HTML link'),
+									'field types' => array('text')),
+				'as_twitter_link' => array('label' => t('As HTML Twitter link'),
+									'field types' => array('text')),
+				'as_youtube_link' => array('label' => t('As HTML YouTube link'),
+									'field types' => array('text')),
+				);
+	}
+
+/***************************************************************************/
+/******************************               ******************************/
+/****************************** hook_locale() ******************************/
+/******************************               ******************************/
+/***************************************************************************/
+
+function ldiw_waste_map_locale($op='groups')
+{
+	switch ($op) {
+		case 'groups': return array('ldiw_waste_map' => t('LDIW Waste Map'));
+
+		case 'info': return array('ldiw_waste_map' => array(
+				'refresh callback' => 'ldiw_waste_map_locale_refresh',
+				'format' => FALSE));
+		}
+	}
+
+function ldiw_waste_map_locale_refresh()
+{
+	foreach (variable_get('ldiw_waste_map_composition_fields',array())
+												as $fieldname => $info) {
+		foreach (array('text','text_solo') as $key) {
+			if (!empty($info[$key])) {
+				i18nstrings_update('ldiw_waste_map:composition_fields:' .
+										$fieldname . ':' . $key,$info[$key]);
+				}
+			}
+		}
+
+	return TRUE;
+	}

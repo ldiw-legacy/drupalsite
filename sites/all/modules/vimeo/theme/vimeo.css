@@ -1,0 +1,316 @@
+/* $Id: vimeo.css,v 1.1.2.1 2010/02/09 00:23:50 starnox Exp $ */
+
+/*==============================//
+// CCK field                    //
+//==============================*/
+
+.vimeo-thumbnail {
+  width: 160px;
+  height: 90px;
+  background: url('thumb.png');
+  border: 1px solid #333;
+  float: left;
+  margin: 5px 15px 5px 0;
+}
+
+.vimeo-break {
+  clear: left;
+}
+
+.vimeo-field-id {
+  width: 300px!important;
+  display: none!important;
+}
+
+.vimeo-details {
+  padding-top: 22px;
+}
+
+/*==============================//
+// Browser                      //
+//==============================*/
+
+.vimeo-browser {
+  padding: 0;
+  margin: 0;
+  font-family: arial, sans-serif;
+}
+
+/* Navigation */
+
+#vimeo-nav {
+  width: 160px;
+  background: #E7E7DE;
+  border-right: 1px solid #BDB9B9;
+  height: 400px;
+  float: left;
+  padding: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+#vimeo-nav h3 {
+  display: block;
+  padding: 0;
+  margin: 0;
+  height: 31px;
+  color: #FFF;
+  font-weight: bold;
+  line-height: 26px;
+  font-size: 13px;
+  padding: 0 5px 5px 5px;
+  background-repeat: no-repeat;
+}
+
+h3.users
+{
+  background: url('users.png');
+}
+
+h3.albums
+{
+  background: url('albums.png');
+}
+
+h3.groups
+{
+  background: url('groups.png');
+}
+
+h3.channels
+{
+  background: url('channels.png');
+}
+
+#vimeo-nav ul,
+#vimeo-nav li {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  font-size:  12px;
+}
+
+#vimeo-nav ul {
+  padding-bottom: 15px;
+}
+
+#vimeo-nav li {
+  height: 26px;
+  line-height: 26px;
+  border-bottom: 1px dotted #BDB9B9;
+  color: #000;
+}
+
+#vimeo-nav li:last-child {
+  border: 0;
+}
+
+#vimeo-nav a:link,
+#vimeo-nav a:visited {
+  display: block;
+  height: 26px;
+  width: 160px;
+  color: #2786C2;
+  text-decoration: none;
+}
+
+#vimeo-nav a.active {
+  font-weight: bold;
+}
+
+#vimeo-nav a:hover,
+#vimeo-nav a:active {
+  color: #F75342;
+}
+
+/* View */
+
+#vimeo-view {
+  height: 383px;
+  overflow-y: scroll;
+  margin: 0!important;
+}
+
+#vimeo-view ul,
+#vimeo-view li {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#vimeo-view li {
+  height: 95px;
+  width: 100%;
+  border-bottom: 1px dotted #BDB9B9;
+  display: block;
+}
+
+#vimeo-view li:hover {
+  background: url('arrow.png') no-repeat center right;
+}
+
+#vimeo-view li.even {
+  background: #FAF9F6;
+}
+
+#vimeo-view li.even:hover {
+  background: #FAF9F6 url('arrow.png') no-repeat center right;
+}
+
+#vimeo-view li:last-child {
+  border: 0;
+}
+
+#vimeo-view img.thumbnail {
+  width: 100px;
+  height: 75px;
+  margin: 10px;
+  float: left;
+  border: 0;
+}
+
+#vimeo-view h2.title {
+  font-size: 15px;
+  line-height: 24px;
+  margin: 0;
+  padding: 18px 0 0 120px;
+}
+
+#vimeo-view h2 a:link,
+#vimeo-view h2 a:visited {
+  color: #2786C2;
+  text-decoration: none;
+}
+
+#vimeo-view h2 a:hover,
+#vimeo-view h2 a:active {
+  color: #F75342;
+}
+
+#vimeo-view span.owner {
+  font-size: 13px;
+  color: #666;
+}
+
+#vimeo-view span.created {
+  display: block;
+  font-size: 11px;
+  color: #999;
+  padding-top: 5px;
+}
+
+#vimeo-view img.source {
+  margin: 111px 0 0 169px;
+  padding: 0;
+}
+
+#vimeo-view p,
+#vimeo-loading p,
+#vimeo-inserting p {
+	text-align: center;
+	font-size: 13px;
+	color: #333;
+}
+
+#vimeo-loading,
+#vimeo-inserting {
+  width: 459px;
+  height: 383px;
+  margin: 0;
+  padding: 0;
+  overflow-y: scroll;
+  display: none;
+}
+
+#vimeo-loading img.loading,
+#vimeo-inserting img.loading {
+  margin: 121px 0 0 169px;
+  padding: 0;
+}
+
+#vimeo-code {
+  height: 36px;
+  background: #E7E7DE;
+  border-top: 1px solid #BDB9B9;
+  overflow: hidden;
+}
+
+#vimeo-code #vimeo-url {
+  height: 26px;
+  background: #FFF;
+  border: 1px solid #BDB9B9;
+  margin: 5px 0 0 10px;
+  padding: 0 5px;
+  color: #333;
+  width: 370px;
+  font-size: 12px;
+}
+
+#vimeo-code #vimeo-url-insert {
+  height: 26px;
+  background:#64C998;
+  border: 1px solid #53A980;
+  margin: 5px 0 0 5px;
+  padding: 0 10px;
+  color: #FFF;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/*==============================//
+// jQuery UI dialog             //
+//==============================*/
+
+.ui-dialog-overlay
+{
+  background: #000;
+  opacity: 0.3;
+  filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=30);
+  -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=30)";
+}
+
+#vimeo-dialog
+{
+  display: none;
+}
+
+.ui-dialog 
+{
+  background: #111;
+  padding: 5px;
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+}
+
+.ui-dialog-container
+{
+  background: #FFF;
+}
+
+.ui-dialog-titlebar
+{
+  height: 30px;
+  background: #111;
+  line-height: 25px;
+  font-size: 1.2em;
+  color: #999;
+  padding: 0 5px;
+}
+
+.ui-dialog-titlebar-close:link,
+.ui-dialog-titlebar-close:visited
+{
+  float: right;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 0.7em;
+  color: #666;
+  text-decoration: none;
+}
+
+.ui-dialog-titlebar-close:hover,
+.ui-dialog-titlebar-close:active
+{
+  text-decoration: none;
+  color: #CCC;
+}

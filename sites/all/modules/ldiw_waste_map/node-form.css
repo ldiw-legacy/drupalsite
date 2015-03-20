@@ -1,0 +1,55 @@
+.label-left-of-input label {
+	display: inline;
+}
+
+.label-left-of-input-23em label {
+	float: left;
+	text-align: right;
+	padding-right: 1em;
+	width: 23em;
+}
+
+.vertically-condensed-form .form-item {
+	margin-top: 0.4em !important;
+	margin-bottom: 0.4em !important;
+}
+
+.vertically-condensed-form .filefield-element,
+.vertically-condensed-form .filefield-element .form-item {
+	margin-top: 0em !important;
+	margin-bottom: 0em !important;
+}
+
+.vertically-condensed-form .filefield-upload input {
+	font-size: 14px;
+}
+
+#ldiw_waste_map_behavior_addpointcontent_form form {
+	padding-top: 0.5em;
+}
+
+.vertically-condensed-form fieldset {
+	margin-bottom: 0;
+}
+
+#edit-field-nr-of-tires-0-value-wrapper {
+	display: inline;
+}
+
+#edit-field-volume-0-value-wrapper {
+	display: inline;
+	padding-right: 1em;
+}
+
+#edit-field-photo-0-upload-wrapper {
+	width: 488px;
+}
+
+#field_external_photo_values {
+	display: none;
+}
+
+#edit-field-cleaned-by-mapper-value-wrapper {
+	font-weight: 700 !important;
+	display: none;
+}

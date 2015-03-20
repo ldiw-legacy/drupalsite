@@ -1,0 +1,76 @@
+<?php
+
+/**
+ * @file
+ * Install file for Regions API.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function regions_api_schema() {
+  $schema['regions_api_regions'] = array(
+    'description' => 'Mapping of continent codes to country codes.',
+    'fields' => array(
+      'rid'  => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique region ID.',
+      ),
+      'iso2' => array(
+        'description' => 'ISO 3166 alpha-2 country code.',
+        'type' => 'char',
+        'length' => 2,
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => 'Region name',
+        'type' => 'varchar',
+        'length' => 80,
+        'not null' => TRUE,
+      ),
+      'abbreviation' => array(
+        'description' => 'Region abbreviation',
+        'type' => 'varchar',
+        'length' => 5,
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('rid'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function regions_api_install() {
+  // Create tables.
+  drupal_install_schema('regions_api');
+  //Include country module include for initial data import
+  require_once(dirname(__FILE__) .'/regions_api.module');
+  regions_api_csv_import_regions();
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function regions_api_uninstall() {
+  // Remove tables.
+  drupal_uninstall_schema('regions_api');
+}
+
+/**
+ * Implementation of hook_update_N().
+ */
+function regions_api_update_6000() {
+  $ret = array();
+  db_change_field($ret, 'regions_api_regions', 'rid', 'rid', array(
+    'type' => 'serial', 'not null' => TRUE, 'description' => 'Primary Key: Unique region ID.',
+  ));
+  db_change_field($ret, 'regions_api_regions', 'iso2', 'iso2', array(
+    'type' => 'char', 'length' => 2, 'not null' => TRUE, 'description' => 'ISO 3166 alpha-2 country code.',
+  ));
+  return $ret;
+}

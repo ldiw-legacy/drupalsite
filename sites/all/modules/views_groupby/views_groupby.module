@@ -1,0 +1,16 @@
+<?php
+
+/**
+ * @file 
+ * Group By Module File.
+ */
+
+/**
+ * Implementation of hook_views_api().
+ */
+function views_groupby_views_api() {
+  return array(
+    'api' => 2,
+  );
+}
+

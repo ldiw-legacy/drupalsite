@@ -1,0 +1,12 @@
+name = CCK Field Definitions
+description = Presents the users with a list of all the fields with their descriptions in a dictionary format.
+dependencies[] = content
+package = CCK
+core = 6.x
+
+; Information added by drupal.org packaging script on 2011-04-11
+version = "6.x-1.4"
+core = "6.x"
+project = "cck_field_defs"
+datestamp = "1302539214"
+

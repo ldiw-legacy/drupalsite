@@ -1,0 +1,16 @@
+name = LDIW 2
+description = www.letsdoitworld.org theme version 2
+core = 6.x
+engine = phptemplate
+stylesheets[all][] = style.css
+regions[left] = Left sidebar
+regions[right] = Right sidebar
+regions[content] = Content
+regions[header] = Header
+regions[footer] = Footer
+regions[news_tab] = "News" frontpage tab
+regions[events_tab] = "Events" frontpage tab
+regions[about_tab] = "About" frontpage tab
+regions[news_titlelist] = WC2012 news list
+regions[who_tab] = "Who are we" frontpage tab
+regions[country_tab] = "My country" frontpage tab

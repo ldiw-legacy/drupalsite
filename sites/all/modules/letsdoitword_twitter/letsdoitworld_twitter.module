@@ -1,0 +1,12 @@
+<?php 
+function letsdoitworld_twitter_block($op='list', $delta=0, $edit=array()) {
+ switch ($op) {
+ case 'list':
+ $blocks[0]['info'] = t('Twitter for Letsdoitworld');
+ return $blocks;
+ case 'view':
+ $blocks['subject'] = t('');
+ $blocks['content'] = twitter_pull_render('@letsdoitworld', '', 5);
+ return $blocks;
+ }
+}

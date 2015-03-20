@@ -1,0 +1,11 @@
+name = "Continents API"
+description = "This module provides an API for accessing continent data."
+package = "Location"
+core = 6.x
+
+; Information added by drupal.org packaging script on 2012-05-12
+version = "6.x-1.2"
+core = "6.x"
+project = "countries_api"
+datestamp = "1336853755"
+

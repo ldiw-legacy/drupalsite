@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="author" content="OKIA" />
+<title>Let's do it!</title>
+<link rel="stylesheet" type="text/css" href="gfx/styles_reset.css" />
+<link rel="stylesheet" type="text/css" href="gfx/styles_screen.css" />
+<link rel="shortcut icon" type="image/ico" href="favicon.ico" />
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/custom.js"></script>
+</head>
+<body class="html page-node">
+<div id="wrap-outer">
+	<div id="mainnav-section" role="navigation">
+		<p id="logo"><a href="#" rel="start" title="Let's do it!"><img src="gfx/letsdoit_logo.png" alt="Let's do it!" /></a></p>
+		<div id="mainnav">
+			<ul>
+				<li><a href="#">Home</a></li>
+				<li><a href="#">Counties</a></li>
+				<li><a href="#">Join</a></li>
+				<li><a href="#">Map the waste</a></li>
+				<li class="active"><a href="#">Events</a></li>
+				<li><a href="#">Promote</a></li>
+				<li><a href="#">Media</a></li>
+				<li><a href="#">Team</a></li>
+				<li><a href="#">Partners</a></li>
+				<li><a href="#">Login</a></li>
+			</ul>
+		</div>
+	</div>
+	<div id="header-outer">
+		<div id="header">
+			<div id="header-content">
+				<h1>Let's clean up!</h1>
+			</div>
+		</div>
+	</div>
+	<div id="wrap-inner">
+		<div id="wrap" class="content">
+			<div class="two-cols">
+				<div class="col sidebar">
+					<ul class="submenu">
+						<li><a href="#">Join</a></li>
+						<li><a href="#">World Cleanup day</a></li>
+						<li><a href="#">Start a cleanup</a></li>
+						<li><a href="#">Clean World Plan</a></li>
+					</ul>
+				</div>
+				<div class="col content">
+					<p><b>How to start a cleanup action?</b><br />Each country is different, so you'll have to be creative and figure out the best plan for your people. And don't be too optimistic about everything working out according to the plan. You'll have some surprises, and that's the fun of it all. So to get started - here are some very general guidelines and hints, to get going:</p>
+					<h2>Build a team!</h2>
+					<p>Together it's easier to brainstorm, get ideas, share responsibilities, and involve even more people. Spread the word among your friends, relatives, schoolmates, colleagues etc. Just show the videos available on our homepage and see what happens. If you have a bunch of people who want to start doing, invite them all to get together for the first meeting - this could be the real start of the clean-up action in your country.</p>
+					<p>To arrange the first meeting and start the action you need maybe only around 3-5 persons - ask them, what's their favorite field - is it communication, waste management, logistics, volunteer engagement, partnership relation or anything else necessary. First share your visions and then formulate a group vision that you all can relate to.</p>
+					<ul>
+						<li>a network of wonderful people and organizations,</li>
+						<li>all of our experience, care and support,</li>
+						<li>several technical tools for garbage mapping and communication.</li>
+					</ul>
+					<h2>Fix the goals!</h2>
+					<p>The next step is to fix the big goals. This is towards what your team will start to work now. Figure out what kind of event your team would like to organize - is it huge one-day clean up (see added materials), is it a series of smaller or bigger actions, is it cleaning household waste, waste around schools, at the riverbanks maybe. All the ideas are good! Just find out, what would be best for your country (is it illegal waste, is it household waste, is it peoples attitude what needs to be changed or something else?), don't hesitate to consult different experts if you do not have all the answers.</p>
+					<p>If you find a goal and concept that will make your heart sing and eyes shine, you'll know it's the way to go! Dare to set yourself some very big goals- It doesn't matter if nobody has ever achieved something like this before.</p>
+					<p>And the most important - commit to those goals, personally and as a team. Even if everyone else might say you're crazy, don't give in. There's always a first time for everything. If you can dream it, it can be done!</p>
+					<p>Try to be as specific in your goals as possible - how many people, how much garbage, who to involve etc.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div id="footer-outer">
+		<div id="footer-inner">
+			<div id="footer">
+				<div class="three-cols">
+					<div class="col">
+						<div class="block">
+							<div class="hgroup">
+								<h2>Get connected</h2>
+								<p>Get informed by email or through social networks</p>
+							</div>
+							<form action="#" method="post" id="newsletter">
+								<p>
+									<label for="">Join our newsletter</label>
+									<input type="email" class="form-type-textfield" placeholder="Enter e-mail" />
+									<input type="submit" value="Join" class="form-submit" />
+								</p>
+							</form>
+							<ul class="social">
+								<li class="fb"><a href="#">Facebook</a></li>
+								<li class="twitter"><a href="#">Twitter</a></li>
+								<li class="youtube"><a href="#">YouTube</a></li>
+								<li class="flickr"><a href="#">Flickr</a></li>
+							</ul>
+						</div>
+					</div>
+					<div class="col">
+						<div class="block">
+							<div class="hgroup">
+								<h2>Twitter</h2>
+								<p>Twitter hashtag #letsdoit</p>
+							</div>
+							<ul class="tweet">
+								<li>
+									<p class="owner">@karllagerfeld</p>
+									<p class="content">Curabitur fringilla consequat sem sit amet imperdiet.</p>
+								</li>
+								<li>
+									<p class="owner">@karllagerfeld</p>
+									<p class="content">Curabitur fringilla consequat sem sit amet imperdiet.</p>
+								</li>
+								<li>
+									<p class="owner">@karllagerfeld</p>
+									<p class="content">Curabitur fringilla consequat sem sit amet imperdiet.</p>
+								</li>
+							</ul>
+						</div>
+					</div>
+					<div class="col">
+						<div class="block">
+							<div class="hgroup">
+								<h2>Facebook</h2>
+								<p>3,579 people like Lets do it World</p>
+								<div class="fb-like">LIKE</div>
+							</div>
+							<div class="fb">Friends...</div>
+						</div>
+					</div>
+				</div>
+				<div class="block">
+					<div class="sponsors">
+						<p><img src="images/logos.png" alt="" /></p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+</body>
+</html>

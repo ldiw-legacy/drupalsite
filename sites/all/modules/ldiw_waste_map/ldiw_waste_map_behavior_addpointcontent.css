@@ -1,0 +1,59 @@
+/* $Id$ */
+
+.ldiw_waste_map_coords_form_control, .ldiw_waste_map_addpoint_help { 
+	float: right;
+	right: 18em;
+	margin: 4px;
+	width: 30em;
+	padding: 5px;
+	border-style: solid;
+	border-color: #222222;
+	text-align: center;
+	font-weight: bold;
+	border-width: 3px;
+	background-color: #c900a2;
+	color: #222222;
+	}
+
+.olControlPanel  {
+	float: right;
+	right: 0px;
+	height: 60px; 
+	width: 15em;
+	}
+
+.olControlPanel div { 
+	float: right;
+	width: 15em;
+	height: 24px;
+	line-height: 24px;
+	border-style: solid;
+	border-color: #666666;
+	text-align: center;
+	font-weight: bold;
+	}
+
+.olControlPanel .olControlNavigationItemActive,
+.olControlPanel .olControlDrawFeaturePointItemActive,
+.WasteMapButtonItemActive {
+	background-color: #f1c02a; 
+	border-width: 3px;
+	margin: 4px;
+	}
+
+.olControlPanel .olControlNavigationItemInactive,
+.olControlPanel .olControlDrawFeaturePointItemInactive,
+.WasteMapButtonItemInactive {
+	background-color: #e9e7e3;
+	border-width: 2px;
+	margin: 5px;
+	}
+
+.qq-upload-button {
+	border-width: 0px;
+	}
+
+.UploadCoordsForm input {
+	margin-left: 5px;
+	margin-right: 5px;
+	}

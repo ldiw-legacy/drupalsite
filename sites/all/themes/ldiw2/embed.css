@@ -1,0 +1,3 @@
+.fullscreen-content, .fullscreen-content > div, .fullscreen-content > div > div {
+	top: 0 !important;
+}

@@ -1,0 +1,354 @@
+<?php
+
+/**
+ * @file
+ * Countries API provides an API for official and up-to-date ISO 3166
+ * country codes (alpha-2 and alpha-3) and names (official short names).
+ */
+
+define('COUNTRIES_API_FORMAT_ISO2', 'iso2');
+define('COUNTRIES_API_FORMAT_ISO3', 'iso3');
+define('COUNTRIES_API_FORMAT_NAME', 'name');
+define('COUNTRIES_API_FORMAT_PRINTABLE_NAME', 'printable_name');
+define('COUNTRIES_API_FORMAT_NUMCODE', 'numcode');
+
+/**
+ * Implementation of hook_help().
+ */
+function countries_api_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#countries_api':
+      return '<p>' . t('For information about the API follow the "Read documentation" link on the module <a href="@project-page-url">project page</a>.', array('@project-page-url' => url('http://drupal.org/project/countries_api'))) . '</p>';
+  }
+}
+
+/**
+ * ISO 3166-1-alpha-#n code to country API function
+ *
+ * @param $code
+ *   An string containg the iso3 value
+ * @return string
+ *   Returns an array containing the country fields
+ */
+function countries_api_get_country($code) {
+  if (drupal_strlen(trim($code)) == 2) {
+    return countries_api_iso2_get_country($code);
+  }
+  elseif (drupal_strlen(trim($code)) == 3) {
+    return countries_api_iso3_get_country($code);
+  }
+  return NULL;
+}
+
+/**
+ * ISO 3166-1-alpha-2 code to country API function
+ *
+ * @param $code
+ *   An string containg the iso3 value
+ * @return string
+ *   Returns an array containing the country fields
+ */
+function countries_api_iso2_get_country($code) {
+  return _countries_api_get_country($code, COUNTRIES_API_FORMAT_ISO2);
+}
+
+/**
+ * ISO 3166-1-alpha-3 code to country API function
+ *
+ * @param $code
+ *   An string containg the iso3 value
+ * @return string
+ *   Returns an array containing the country fields
+ */
+function countries_api_iso3_get_country($code) {
+  return _countries_api_get_country($code, COUNTRIES_API_FORMAT_ISO3);
+}
+
+/**
+ * ISO 3166-1-alpha-#n code to country name API function
+ *
+ * @param $code
+ *   Either an iso2 or iso3 Country Code to search by.
+ * @return string
+ *   Returns country name as string.
+ */
+function countries_api_get_name($code) {
+  if (drupal_strlen(trim($code)) == 2) {
+    return countries_api_iso2_get_name($code);
+  }
+  elseif (drupal_strlen(trim($code)) == 3) {
+    return countries_api_iso3_get_name($code);
+  }
+  return NULL;
+}
+
+/**
+ * ISO 3166-1-alpha-2 code to country name API function
+ *
+ * @param $code
+ *   iso2 country code to search by.
+ * @return string
+ *   Returns country name as string.
+ */
+function countries_api_iso2_get_name($code) {
+  $_country = countries_api_iso2_get_country($code);
+  if (!is_null($_country)) {
+    return $_country[COUNTRIES_API_FORMAT_NAME];
+  }
+  return NULL;
+}
+
+/**
+ * ISO 3166-1-alpha-3 code to country name API function
+ *
+ * @param $code
+ *   iso3 country code to search by.
+ * @return string
+ *   Returns country name as a string.
+ */
+function countries_api_iso3_get_name($code) {
+  $_country = countries_api_iso3_get_country($code);
+  if (!is_null($_country)) {
+    return $_country[COUNTRIES_API_FORMAT_NAME];
+  }
+  return NULL;
+}
+
+/**
+ * ISO 3166-1-alpha-2 code to ISO 3166-1-alpha-3 code API function
+ *
+ * @param $code
+ *   iso2 country code to search by.
+ * @return string
+ *   Returns iso3 string value of country
+ */
+function countries_api_iso2_get_iso3($code) {
+  $_country = countries_api_iso2_get_country($code);
+  if (!is_null($_country)) {
+    return $_country[COUNTRIES_API_FORMAT_ISO3];
+  }
+  return NULL;
+}
+
+/**
+ * ISO 3166-1-alpha-3 code to ISO 3166-1-alpha-2 code API function
+ *
+ * @param $code
+ *   iso3 country code to search by.
+ * @return string
+ *   Returns iso2 string value of country
+ */
+function countries_api_iso3_get_iso2($code) {
+  $_country = countries_api_iso3_get_country($code);
+  if (!is_null($_country)) {
+    return $_country[COUNTRIES_API_FORMAT_ISO2];
+  }
+  return NULL;
+}
+
+/**
+ * ISO 3166-1 numcode to country API function
+ *
+ * @param $code
+ *   An string containg the numcode value
+ * @return string
+ *   Returns an array containing the country fields
+ */
+function countries_api_numcode_get_country($code) {
+  return _countries_api_get_country($code, COUNTRIES_API_FORMAT_NUMCODE);
+}
+
+
+/**
+ * ISO 3166-1 numcode to country name API function
+ *
+ * @param $code
+ *   numcode to search by.
+ * @return string
+ *   Returns country name as a string.
+ */
+function countries_api_numcode_get_name($code) {
+  $_country = countries_api_numcode_get_country($code);
+  if (!is_null($_country)) {
+    return $_country[COUNTRIES_API_FORMAT_NAME];
+  }
+  return NULL;
+}
+
+/**
+ * This function was renamed to _countries_api_get_country. But to keep support
+ * for modules that uses _countries_api_iso_get_country this function should
+ * exists, but only call the renamed function.
+ *
+ * @see _countries_api_get_country()
+ */
+function _countries_api_iso_get_country($value, $format) {
+  return _countries_api_get_country($value, $format);
+}
+
+/**
+ * Function to return a country by code and name.
+ *
+ * @param $value
+ *  The country code value (in iso2, iso3, name or printable name format)
+ * @param $format
+ *  The format to return country by
+ * @return array
+ *   with data of the country
+ */
+function _countries_api_get_country($value, $format) {
+  $value = trim(check_plain($value));
+
+  switch ($format) {
+    case COUNTRIES_API_FORMAT_ISO2:
+      $result = db_query("SELECT iso2, name, printable_name, iso3, numcode FROM {countries_api_countries} WHERE iso2 = '%s'", $value);
+      break;
+
+    case COUNTRIES_API_FORMAT_ISO3:
+      $result = db_query("SELECT iso2, name, printable_name, iso3, numcode FROM {countries_api_countries} WHERE iso3 = '%s'", $value);
+      break;
+
+    case COUNTRIES_API_FORMAT_NAME:
+      $result = db_query("SELECT iso2, name, printable_name, iso3, numcode FROM {countries_api_countries} WHERE name = '%s'", $value);
+      break;
+
+    case COUNTRIES_API_FORMAT_PRINTABLE_NAME:
+      $result = db_query("SELECT iso2, name, printable_name, iso3, numcode FROM {countries_api_countries} WHERE printable_name = '%s'", $value);
+      break;
+
+    case COUNTRIES_API_FORMAT_NUMCODE:
+      $result = db_query("SELECT iso2, name, printable_name, iso3, numcode FROM {countries_api_countries} WHERE numcode = '%s'", $value);
+      break;
+
+    default:
+      return FALSE;
+  }
+
+  return db_fetch_array($result);
+}
+
+/**
+ * Function to return an associative array of countries with key/values based on args
+ * Can be used to get results for FAPI form options.
+ *
+ * @param $key_format
+ *   The format of the key (a value from countries_api_formats)
+ * @param $value_format
+ *   The format of teh value (a value from countries_api_formats)
+ * @return array
+ *   An associative array based on arguments
+ */
+function countries_api_get_array($key_format = COUNTRIES_API_FORMAT_ISO2, $value_format = COUNTRIES_API_FORMAT_PRINTABLE_NAME) {
+  if (!countries_api_validate_format($key_format) || !countries_api_validate_format($value_format)) {
+    return FALSE;
+  }
+
+  $rows = array();
+  foreach (countries_api_get_list() as $country) {
+    $rows[$country[$key_format]] = $country[$value_format];
+  }
+
+  return $rows;
+}
+
+/**
+ * Function for returning an associative array useful for FAPI select elements
+ *
+ * @param array
+ *   The first value in the array (defaults to '' => 'Please Choose')
+ * @return array
+ *   Returns an associative array in $country['iso2'] => $country['printable_name'] format.
+ */
+function countries_api_get_options_array($first_element = array('' => 'Please Choose')) {
+  return array_merge($first_element, countries_api_get_array(COUNTRIES_API_FORMAT_ISO2, COUNTRIES_API_FORMAT_PRINTABLE_NAME));
+}
+
+/**
+ * Function to return an associative array of all countries.
+ *
+ * @param $reset
+ *   Whether to reset the internal countries_api_get_list cache.
+ * @return array
+ *   associative array of all countries
+ */
+function countries_api_get_list($reset = FALSE) {
+  static $countries;
+
+  if ($reset || !isset($countries)) {
+    $countries = array();
+    $result = db_query("SELECT iso2, iso3, name, printable_name, numcode FROM {countries_api_countries} ORDER BY printable_name");
+    while ($row = db_fetch_array($result)) {
+      $countries[] = $row;
+    }
+  }
+
+  return $countries;
+}
+
+/** Utility Functions **/
+
+/**
+ * Funtion to return available formats
+ *
+ * @return array
+ *   Returns an array of available formats
+ */
+function countries_api_get_formats() {
+  return array(COUNTRIES_API_FORMAT_ISO2, COUNTRIES_API_FORMAT_ISO3, COUNTRIES_API_FORMAT_NAME, COUNTRIES_API_FORMAT_PRINTABLE_NAME, COUNTRIES_API_FORMAT_NUMCODE);
+}
+
+/**
+ * Function to validate format argument
+ *
+ * @param $format
+ *   Input format to validate
+ * @return boolean
+ *   Return if it is a valid format
+ */
+function countries_api_validate_format($format) {
+  return in_array($format, countries_api_get_formats());
+}
+
+/**
+ * Function to import countries from CSV file
+ * TODO: provide arguments for specifying csv files
+ * TODO: setup permissions
+ *
+ * @param $offset
+ *   Int value for csv row offset.
+ */
+function countries_api_csv_import_countries($offset = 1) {
+  //Prepopulate countries table
+  $handle = fopen(dirname(__FILE__) ."/data/countries.csv", "r");
+  $index = 1;
+  while (($row = fgetcsv($handle, 1024, ",")) !== FALSE) {
+    //Create row variables
+    $record = array(
+      COUNTRIES_API_FORMAT_ISO2 => $row[0],
+      COUNTRIES_API_FORMAT_NAME => $row[1],
+      COUNTRIES_API_FORMAT_PRINTABLE_NAME => $row[2],
+      COUNTRIES_API_FORMAT_ISO3 => ($row[3] !== 'NULL') ? $row[3] : NULL,
+      COUNTRIES_API_FORMAT_NUMCODE => ($row[4] !== 'NULL') ? $row[4] : NULL,
+    );
+    if ($index > $offset) {
+      db_query(
+        "INSERT INTO {countries_api_countries}
+          (iso2, name, printable_name, iso3, numcode)
+          VALUES('%s', '%s', '%s', '%s', '%s')",
+          $record[COUNTRIES_API_FORMAT_ISO2], $record[COUNTRIES_API_FORMAT_NAME], $record[COUNTRIES_API_FORMAT_PRINTABLE_NAME], $record[COUNTRIES_API_FORMAT_ISO3], $record[COUNTRIES_API_FORMAT_NUMCODE]
+      );
+    }
+    $index++;
+  }
+  fclose($handle);
+  // Work around a deficiency in db_query() (unable to insert NULL ints)
+  db_query("UPDATE {countries_api_countries} SET numcode = NULL WHERE numcode = 0");
+  watchdog('countries_api', "Pre-populated countries api data.");
+}
+
+/**
+ * Function to flush (empty) the countries database
+ */
+function _countries_api_flush() {
+  db_query("DELETE FROM {countries_api_countries}");
+}

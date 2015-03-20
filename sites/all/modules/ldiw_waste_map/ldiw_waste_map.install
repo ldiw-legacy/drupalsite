@@ -1,0 +1,188 @@
+<?php
+
+function ldiw_waste_map_schema()
+{
+	return array(
+		'ldiw_waste_map_smartphone_install_visitors' => array(
+			'description' => "User activity log for smartphone app QR-Code",
+			'fields' => array(
+				'id' => array(
+					'description' => 'Primary key; required by Views, ' .
+											'unnecessary for anything else',
+					'type' => 'serial',
+					'not null' => TRUE,
+					),
+				'time' => array(
+					'description' => "Time when the event happened",
+					'type' => 'datetime',
+					'not null' => TRUE,
+					),
+				'country_code' => array(
+					'description' => "User country code, from GeoIP",
+					'type' => 'varchar',
+					'length' => 2,
+					),
+				'user_agent' => array(
+					'description' => "HTTP User-Agent string",
+					'type' => 'varchar',
+					'length' => 200,
+					),
+				'smartphone_type' => array(
+					'description' => "Detected smartphone type",
+					'type' => 'varchar',
+					'length' => 30,
+					),
+				),
+			'primary key' => array('id'),
+			),
+		);
+	}
+
+function _ldiw_waste_map_create_geo_index($geo)
+{
+	global $db_type;
+
+	if (!method_exists($geo,'setIndexed')) {
+		return;		// Let's ignore this the error to not abort install
+		}
+
+	if ($db_type == 'mysql' || $db_type == 'mysqli') {
+		foreach ($geo->sqlFieldDefinition() as $field => $definition) {
+			update_sql("ALTER TABLE " . $geo->tableName(TRUE) . " CHANGE " .
+					"$field $field ${definition['mysql_type']} NOT NULL");
+			}
+		}
+
+	$geo->setIndexed(TRUE,TRUE);
+	}
+
+function ldiw_waste_map_install()
+{
+	drupal_install_schema('ldiw_waste_map');
+
+	// Update module weight to make our hook_form_alter() run after CCK
+	db_query("UPDATE {system} SET weight=1 WHERE name='ldiw_waste_map'");
+
+	module_load_include('inc','geo','includes/geo.api');
+
+	$db_info=content_database_info(
+							content_fields('field_coords','waste_point'));
+	_ldiw_waste_map_create_geo_index(
+						geo_load(array('table_name' => $db_info['table'])));
+
+	_ldiw_waste_map_create_geo_index(geo_load(array('name' => 'field_geo')));
+	}
+
+function ldiw_waste_map_uninstall()
+{
+	drupal_uninstall_schema('ldiw_waste_map');
+	}
+
+function ldiw_waste_map_update_6100()
+{
+	$retval=array();
+	$schema=ldiw_waste_map_schema();
+	db_create_table($retval,'ldiw_waste_map_smartphone_install_visitors',
+					$schema['ldiw_waste_map_smartphone_install_visitors']);
+	return $retval;
+	}
+
+function ldiw_waste_map_requirements($phase)
+{
+	$requirements=array();
+	if ($phase == 'runtime') {
+
+			/*************************************************/
+			/*****                                       *****/
+			/***** Check OpenLayers style plugin support *****/
+			/*****                                       *****/
+			/*************************************************/
+
+		$req=array('title' => t('OpenLayers supports style plugins'),
+					'severity' => REQUIREMENT_OK,
+					'value' => t('Yes'),
+					);
+		if (!class_exists('openlayers_style_plugin')) {
+			$req['severity']=REQUIREMENT_ERROR;
+			$req['value']=t('No');
+			$req['description']=t('OpenLayers module does not support ' .
+					'style plugins, which are needed for LDIW Waste Map. ' .
+					'Use dev version of OpenLayers module or manually ' .
+					'apply patch from http://drupal.org/node/710908');
+			}
+		$requirements['ldiw_waste_map_openlayers_style_plugin']=$req;
+
+			/********************************************/
+			/*****                                  *****/
+			/***** Check icon directory writability *****/
+			/*****                                  *****/
+			/********************************************/
+
+		$req=array('title' => t('LDIW Waste Map icon cache directory'),
+					'severity' => REQUIREMENT_OK,
+					'value' => t('Exists and is writable'),
+					);
+		$path=file_directory_path() . '/ldiw_waste_map/waste_point_icon';
+		if (!file_check_directory($path)) {
+			$req['severity']=REQUIREMENT_ERROR;
+			$req['value']=t('Does not exist or is not writable');
+			$req['description']=t('LDIW Waste Map needs its icon cache ' .
+					'directory !path to be writable for webserver process.',
+					array('!path' => $path));
+			}
+		$requirements['ldiw_waste_map_icon_cache']=$req;
+
+			/********************************************/
+			/*****                                  *****/
+			/***** Check views_handler_argument_geo *****/
+			/*****                                  *****/
+			/********************************************/
+
+		$req=array('title' => t('views_handler_argument_geo'),
+					'severity' => REQUIREMENT_OK,
+					'value' => t('Exists'),
+					);
+		views_include('base');
+		views_include('handlers');
+		views_module_include('views.inc');
+		if (!views_fetch_handler_data('views_handler_argument_geo')) {
+			$req['severity']=REQUIREMENT_ERROR;
+			$req['value']=t('Does not exist');
+			$req['description']=t('LDIW Waste Map needs Geo module ' .
+					'to support views_handler_argument_geo. Apply Geo ' .
+					'patch from http://drupal.org/node/813482');
+			}
+		$requirements['ldiw_waste_map_geo_argument_handler']=$req;
+
+			/******************************************/
+			/*****                                *****/
+			/***** Check for installed Geo fields *****/
+			/*****                                *****/
+			/******************************************/
+
+		foreach (array('field_coords','field_geo') as $fieldname) {
+			$req=array('title' => t('LDIW Waste Map Geo field %fieldname',
+										array('%fieldname' => $fieldname)));
+			if (db_result(db_query("SELECT COUNT(*) from {geo} " .
+											"WHERE name='%s'",$fieldname))) {
+				$req['severity']=REQUIREMENT_OK;
+				$req['value']=t('OK');
+				}
+			else {
+				$req['severity']=REQUIREMENT_ERROR;
+				$req['value']=t('Is not configured');
+				$req['description']=t("Geo dataset for %fieldname does not " .
+						"exist in {geo} table. To fix this, you can try " .
+						"disabling and then re-enabling LDIW modules, " .
+						"or see if there are any errors on " .
+						"<a href='@features_url'>Features admin page</a>.",
+						array('%fieldname' => $fieldname,
+							'@features_url' => url(
+								'admin/build/features/ldiw_waste_map_features')));
+				}
+			$requirements['ldiw_waste_map_' . $fieldname]=$req;
+			}
+		}
+	return $requirements;
+	}
+?>

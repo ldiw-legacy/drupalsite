@@ -1,0 +1,113 @@
+<?php
+
+/**
+ * Implementation of hook_schema().
+ */
+function countries_api_schema() {
+  $schema['countries_api_countries'] = array(
+    'description' => 'Data table for Country codes API.',
+    'fields' => array(
+      'iso2' => array(
+        'description' => 'ISO 3166-1 alpha 2 country code',
+        'type' => 'char',
+        'length' => 2,
+        'not null' => TRUE,
+      ),
+      'iso3' => array(
+        'description' => 'ISO 3166-1 alpha 3 country code',
+        'type' => 'char',
+        'length' => 3,
+        'not null' => FALSE,
+      ),
+      'name' => array(
+        'description' => 'ISO 3166-1 country name',
+        'type' => 'varchar',
+        'length' => 80,
+        'not null' => TRUE,
+      ),
+      'printable_name' => array(
+        'description' => 'ISO 3166-1 country name with correct case',
+        'type' => 'varchar',
+        'length' => 80,
+        'not null' => TRUE,
+      ),
+      'numcode' => array(
+        'description' => 'Country numcode',
+        'type' => 'int',
+        'size' => 'small',
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('iso2'),
+  );
+
+  return $schema;
+}
+
+/**
+ * @file
+ * Install file for Countries API.
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function countries_api_install() {
+  // Create tables.
+  drupal_install_schema('countries_api');
+  //Include country module include for initial data import
+  require_once(dirname(__FILE__) .'/countries_api.module');
+  countries_api_csv_import_countries();
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function countries_api_uninstall() {
+  // Remove tables.
+  drupal_uninstall_schema('countries_api');
+}
+
+/**
+ * Implementation of hook_update_N().
+ */
+function countries_api_update_6000() {
+  $ret = array();
+  db_change_field($ret, 'countries_api_countries', 'iso2', 'iso2', array(
+    'type' => 'char', 'length' => 2, 'not null' => TRUE, 'description' => 'ISO 3166-1 alpha 2 country code',
+  ));
+  db_change_field($ret, 'countries_api_countries', 'iso3', 'iso3', array(
+    'type' => 'char', 'length' => 3, 'not null' => TRUE, 'description' => 'ISO 3166-1 alpha 3 country code',
+  ));
+  return $ret;
+}
+
+/**
+ * Implementation of hook_update_N().
+ */
+function countries_api_update_6101() {
+  $ret = array();
+  //Include country module include for initial data import
+  require_once(dirname(__FILE__) .'/countries_api.module');
+  _countries_api_flush();
+  countries_api_csv_import_countries();
+  return $ret;
+}
+
+function countries_api_update_6102() {
+  $ret = array();
+  db_change_field($ret, 'countries_api_countries', 'iso3', 'iso3', array(
+    'type' => 'char', 'length' => 3, 'not null' => FALSE, 'description' => 'ISO 3166-1 alpha 3 country code',
+  ));
+  $ret[] = update_sql("UPDATE {countries_api_countries} SET iso3 = NULL WHERE iso3 = 'NULL' OR iso3 = 'NUL'");
+  return $ret;
+}
+
+/**
+ * Issue #1561152 - Change "Libyan Arab Jamahiriya" to "Libya".
+ */
+function countries_api_update_6103() {
+  $ret = array();
+  $ret[] = update_sql("UPDATE {countries_api_countries} SET name = 'LIBYA', printable_name = 'Libya' WHERE iso2 = 'LY'");
+  return $ret;
+}

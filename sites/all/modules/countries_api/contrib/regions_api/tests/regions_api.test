@@ -1,0 +1,29 @@
+<?php
+
+/**
+ * @file
+ * Tests for Regions API.
+ */
+
+class RegionsAPITestCase extends DrupalWebTestCase {
+
+  function getInfo() {
+    return array(
+      'name' => 'Regions API tests',
+      'description' => 'Tests Regions API functions',
+      'group' => 'Regions API tests',
+    );
+  }
+
+  function setUp() {
+    parent::setUp('regions_api');
+  }
+
+  /**
+   * Test that the links are added to the page (no JS testing).
+   */
+  function test_regions_api_iso2_get_array() {
+    $regions = regions_api_iso2_get_array('US');
+    $this->assertNotNull($regions, 'Checking regions api array results.');
+  }
+}

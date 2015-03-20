@@ -1,0 +1,164 @@
+<?php
+
+/**
+ * @file
+ * A collection of country icons, and an API for retrieving them.
+ */
+
+/**
+ * Implementation of hook_theme().
+ */
+function countryicons_theme() {
+  return array(
+    'countryicons_icon' => array(
+      'arguments' => array(
+        'code' => NULL,
+        'iconset' => 'shiny',
+        'alt' => '',
+        'title' => '',
+        'attributes' => NULL
+      ),
+    ),
+    'countryicons_icon_sprite' => array(
+      'arguments' => array(
+        'code' => NULL,
+        'iconset' => 'shiny'
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function countryicons_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#countryicons' :
+      $output = '<p>'. t('This module provides a collection of country icons, and an API for retrieving them.') . '</p>';
+      $output .= '<h3>'. t('API') .'</h3>';
+      $output .= '<p>'. t('The following functions are provided:') .'</p>';
+      $output .= '<dl>';
+      $output .= '<dt><strong>countryicons_get_iconsets()</strong></dt>';
+      $output .= '<dd>'. t('Get an array with all iconsets and their details.') .'</dd>';
+      $output .= '<dt><strong>countryicons_get_iconset($iconset)</strong></dt>';
+      $output .= '<dd>'. t('Get an array with requested iconset and its details.') .'</dd>';
+      $output .= '<dt><strong>countryicons_get_icon_path($code, $iconset = "shiny")</strong></dt>';
+      $output .= '<dd>'. t('Get the path to an icon.') .'</dd>';
+      $output .= '<dt><strong>theme_countryicons_icon($code, $iconset = "shiny", $alt = "", $title = "", $attributes = NULL)</strong></dt>';
+      $output .= '<dd>'. t('Theme a country icon. Returns a string containing the image tag.') .'</dd>';
+      $output .= '<dt><strong>theme_countryicons_icon_sprite($code, $iconset = "shiny")</strong></dt>';
+      $output .= '<dd>'. t('Theme a country icon using a css spriting technique adapted from this <a href="!css_url">list apart article</a>.', array('!css_url' => 'http://www.alistapart.com/articles/sprites'));
+      $output .= t('The css sprite and some css was generated using the <a href="!sprite_generator_url">Project Fondue CSS Sprite Generator</a>.', array('!sprite_generator_url' => 'http://spritegen.website-performance.org/'));
+      $output .= t('Returns a string containing the icon markup') . '</dd>';
+      $output .= '</dl>';
+      $output .= '<h3>' . t('Icon sets') . '</h3>';
+      $output .= '<p>'. t('Additional icon sets may be provided... [More documentation to follow]') .'</p>';
+      return $output;
+  }
+}
+
+/**
+ * Get all iconsets and their details.
+ * Searches for .iconsetsinfo-files within the modules iconsets directory.
+ *
+ * @return
+ *   array of iconsets
+ */
+function countryicons_get_iconsets() {
+  static $all_iconsets = NULL;
+
+  if (isset($all_iconsets)) {
+    return $all_iconsets;
+  }
+
+  $all_iconsets = array();
+
+  $iconsetpath = drupal_get_path('module', 'countryicons') .'/iconsets/';
+  $setinfofiles = file_scan_directory($iconsetpath, '.*iconsetinfo');
+
+  foreach ($setinfofiles as $setinfofile) {
+    $setinfo = drupal_parse_info_file($setinfofile->filename);
+    $setinfo['path'] = $iconsetpath . $setinfo['name'] .'/*.'. $setinfo['format'];
+    $all_iconsets[$setinfo['name']] = $setinfo;
+  }
+
+  return $all_iconsets;
+}
+
+/**
+ * Get an iconsets details.
+ *
+ * @param $iconset
+ *   The iconset name.
+ * @return
+ *   array with requested iconset.
+ */
+function countryicons_get_iconset($iconset) {
+  $all_iconsets = countryicons_get_iconsets();
+  return $all_iconsets[$iconset];
+}
+
+/**
+ * Get the path to an icon.
+ *
+ * @param $code
+ *   A two letter ISO3166 country code.
+ * @param $iconset
+ *   The icon set to use ('shiny' is the default).
+ * @return
+ *   A string containing an absolute path to the image file.
+ */
+function countryicons_get_icon_path($code, $iconset = 'shiny') {
+  $iconsetinfo = countryicons_get_iconset($iconset);
+  return str_replace('*', $code, $iconsetinfo['path']);
+}
+
+/**
+ * Theme a country icon.
+ *
+ * @param $code
+ *   A two letter ISO3166 country code.
+ * @param $iconset
+ *   The icon set to use ('shiny' is the default).
+ * @param $alt
+ *   The alternative text for text-based browsers (the two letter ISO3166 country code is the default).
+ * @param $title
+ *   The title text is displayed when the image is hovered in some popular browsers.
+ * @param $attributes
+ *   Associative array of attributes to be placed in the img tag.
+ * @return
+ *   A string containing the image tag.
+ */
+function theme_countryicons_icon($code, $iconset = 'shiny', $alt = '', $title = '', $attributes = NULL) {
+  $iconset = !isset($iconset) ? 'shiny' : $iconset;
+  $iconsetinfo = countryicons_get_iconset($iconset);
+
+  $path = str_replace('*', drupal_strtolower($code), $iconsetinfo['path']);
+  $path = file_exists($path) ? $path : str_replace('*', 'unknown', $iconsetinfo['path']);
+
+  $alt = $alt ? $alt : $code;
+
+  $attributes = $attributes ? $attributes : array();
+  $attributes['class'] = 'countryicon countryicon-iconset-' . drupal_strtolower($iconset) .' countryicon-code-' . drupal_strtolower($code) . ' ' . $attributes['class'];
+
+  return theme('image', $path, $alt, $title, $attributes);
+}
+
+/**
+ * Theme a country icon.
+ *
+ * @param $code
+ *   A two letter ISO3166 country code.
+ * @param $iconset
+ *   The icon set to use ('shiny' is the default).
+ * @return
+ *   A string containing the image tag rendered using a css sprite techniquie.
+ */
+function theme_countryicons_icon_sprite($code, $iconset = 'shiny') {
+	drupal_add_css(drupal_get_path('module', 'countryicons') . '/iconsets/' . $iconset . '/' . $iconset . '.css');
+	
+	$iconsetinfo = countryicons_get_iconset($iconset);
+	$path = str_replace('*', 'shiny-sprite', $iconsetinfo['path']);
+  
+  return '<ul class="countryicon countryicon-' . $iconset . '"><li class="countryicon-' . drupal_strtolower($code) . '-' . $iconset . '"></li></ul>';
+}

@@ -1,0 +1,192 @@
+<?php
+/** 
+ * Regenerate Nodes per Content Type
+ * Version 0.4
+ * USE AT OWN RISK
+ * Intended to update page types subsequent to creating or changing cck computed fields
+ * Provided with no warranties, guarantees, support, or documentation beyond what's found here
+ * Originally written by Ted Tieken of blooksllc.com for unitedforonecause.org
+ 
+ * Reworked and expanded a bit in April/May 2010 by Martin Joergensen - vertikal.dk
+
+ * Install and activate module - sites/all/modules or sites/all/modules/cck/modules are good choices
+ * Allow other users than admin to regenerate by granting access to 'administer regeneration'
+ * Find the new function in the admin/settings menu
+ * The module offers to automatically disable Pathauto and reenable it when done
+ * The module will run the update in batches of 100 (or a number you set) with a simple page refresh, which allows for updates of a very large number of nodes
+ * Select and update the appropriate content type(s)
+
+ * You may still encounter timeouts on large batches. Decrease the number of nodes per refresh  - or increase timeout time with set_time_limit() or in php.ini
+
+ * Mid-May 2010
+ * Removed mySQL-specific code
+ * 
+
+
+ */
+
+/**
+ * Implementation of hook_perm()
+ */
+function regenerate_perm() {
+  return array('administer regeneration');
+}
+
+
+// Create menu item
+function regenerate_menu() {
+  $items = array();
+
+  $items['admin/content/regenerate'] = array(
+      'title' => t('Regenerate Nodes'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('regenerate_node_type'),
+      'description' => t('Regenerate nodes by type'),
+      'type' => MENU_NORMAL_ITEM,
+      'access arguments' => array('administer regeneration'),
+    );
+
+  $items['admin/content/continueregenerate/%/%/%/%'] = array(
+      'title' => t('Continue Regenerate Node Types'),
+      'page callback' => 'regenerate_nodes_of_type',
+      'page arguments' => array(3, 4, 5, 6),
+      'type' => MENU_CALLBACK,
+      'access arguments' => array('administer regeneration'),
+    );
+
+  return $items;
+}
+
+
+// Create form
+function regenerate_node_type() {
+  // Get all node types
+  $type = node_get_types();
+
+  // Count nodes of each
+  $res=db_query('SELECT COUNT(*) AS n, type FROM {node} GROUP BY type');
+  while ($data=db_fetch_object($res)) {
+    $num[$data->type]=$data->n;
+  }
+
+  // Generate the options
+  foreach ($type as $k => $v) {
+    $form_values[$k] = $v->name.' ('.$k.' - '.$num[$k].')';
+  }
+
+  // Check for pathauto and create warning
+  if (module_exists('pathauto')) {
+    $warning=t('If you have the pathauto-module enabled, you may want to disable it in the <a href="!url">module list</a> to avoid timeouts when mass-updating. Reactivate it after the regeneration has finished.', array('!url'=>'/admin/build/modules#edit-status-pathauto?destination='.urlencode('/admin/settings/regenerate')));
+    $form['pathauto'] = array (
+      '#type'=>'checkbox',
+      '#title' => t('Automatically disable Pathauto when regenerating and enable when done.'),
+      '#value'=>1,
+      '#weight'=>20,
+    );
+
+  } else {
+    $warning=t('Pathauto not enabled');
+  }
+
+  // Select content type
+  $form['type'] = array(
+    '#type' => 'select',
+    '#title' => t('Content type to update'),
+    '#options' => $form_values,
+    '#description' => theme_item_list(array($warning, t('Select the content type you would like to regenerate.'))),
+    '#weight'=>10,
+    );
+
+  $form['number'] = array (
+    '#type'=>'textfield',
+    '#size'=>10,
+    '#title' => t('Number of nodes in one go'),
+    '#description'=>theme_item_list(array(t('Decrease if you get timeouts'))),
+    '#default_value'=>100,
+    '#weight'=>30,
+  );
+
+  // Submit handler
+  $form['#submit'] = array (
+    'regenerate_node_type_sumbit',
+  ); 
+
+  // Buttons
+  $form['save']=array(
+    '#type' => 'submit',
+    '#value' => t('Regenerate'),
+    '#weight'=>40,
+    );
+
+  $form['cancel']=array(
+    '#type' => 'markup',
+    '#value' => l(t('Cancel'), 'admin/settings') ,
+    '#weight'=>50,
+    );
+
+  return $form;
+}
+
+
+// Processes the submitted form
+function regenerate_node_type_sumbit($form, &$form_state) {
+  // Set pathauto state for future use
+  if ($form_state['values']['pathauto']) {
+    variable_set('regenerate_node_disable_pathauto', true);
+  } else {
+    variable_set('regenerate_node_disable_pathauto', false);
+  }
+  // Start the regeneration cycle
+  regenerate_nodes_of_type($form_state['values']['type'], 0, $form_state['values']['number']);
+}
+
+
+// Do the actual regeneration by simply loading and saving the nodes
+function regenerate_nodes_of_type($type, $start, $number, $all=0) {
+  if (variable_get('regenerate_node_disable_pathauto', false) && module_exists('pathauto')) {
+    drupal_set_message(t('Disabled pathauto'));
+    module_disable(array('pathauto'));
+  }
+  $i = 0;
+
+  // Set limit according to args
+  $limit=' LIMIT '. $number .' OFFSET '. ($start ? $start : '0');
+  $q="SELECT n.nid FROM {node} n WHERE n.type = '".db_escape_string($type)."' ORDER BY nid".$limit;
+
+  // Fetch a numer of nodes in the database
+  $res = db_query($q);
+
+  // Process nodes
+  while ($n = db_fetch_object($res)) {
+    // Load and save and count
+    $node = node_load($n->nid);
+    //Store node dates and restore them after node update
+    $node_changed = $node->changed;
+    $n = node_save($node);
+    //Restore changed date:
+    db_query("UPDATE {node} SET changed = '%s' WHERE nid = %d", $node_changed, $node->nid);
+    $i++;
+  }
+
+  if ($i) {
+    $start+=$number;
+    $all+=$i;
+    // Pull the brake if we are looping endlessly...
+    if ($all!=arg(3)) {
+      drupal_goto('admin/content/continueregenerate/'.$type.'/'.$start.'/'.$number.'/'.$all);
+    } else {
+      drupal_set_message(t('Broke possible endless loop in regenerate at !num nodes of type !type', array('!num'=>$all, '!type'=>$type)));
+    }
+  }
+  // We only go here in case of no more nodes or an error
+
+  // Reset pathauto
+  if (variable_get('regenerate_node_disable_pathauto', false)) {
+    module_enable(array('pathauto'));
+    drupal_set_message(t('Reenabled pathauto'));
+  }
+  // Finish the process and exit
+  drupal_set_message(t("!num nodes of type !type updated", array('!num'=>$all, '!type'=>$type)));
+  drupal_goto('admin/content/regenerate');
+
+}

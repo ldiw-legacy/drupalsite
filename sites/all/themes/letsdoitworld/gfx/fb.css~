@@ -1,0 +1,83 @@
+/* ------ MBT's Custom Like Box ----- */
+
+    .fan_box a:hover{
+      text-decoration: none;
+    }
+
+
+    .fan_box .full_widget{
+      height: 200px;
+      border: 0 !important;
+      background: none !important;
+      position: relative;
+    }
+
+
+    .fan_box .connect_top{
+      background: none !important;
+      padding: 0 !important;
+    }
+
+
+    .fan_box .profileimage, .fan_box .name_block{
+      display: none;
+    }
+
+
+    .fan_box .connect_action{
+      padding: 0 !important;
+    }
+
+
+    .fan_box .connections{
+      padding: 4px !important;
+      margin:3px 0px 5px 0px!important;
+      border: 0 !important;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: bold;
+      color: #4B7C00;
+    }
+
+
+    span.total{
+      display:none;
+    }
+
+    .fan_box .connections .connections_grid {
+      padding-top: 0px !important;
+    }
+
+
+    .fan_box .connections_grid .grid_item{
+      padding: 0 10px 10px 0 !important;
+    }
+
+
+    .fan_box .connections_grid .grid_item .name{
+      font-family: "lucida grande",tahoma,verdana,arial,sans-serif;
+      font-weight: normal;
+      color: silver !important;
+      padding-top: 1px !important;
+    }
+
+
+    .fan_box .connect_widget{
+    position: absolute;
+    bottom: 0;
+    left: 0px;
+    margin: 0 !important;
+    }
+
+
+    .fan_box .connect_widget .connect_widget_interactive_area {
+    margin: 0 !important;
+    }
+
+
+    .fan_box .connect_widget td.connect_widget_vertical_center {
+    padding: 0 !important;
+    }
+
+
+    /*---------------MBT's Custom Like Box End--------------*/

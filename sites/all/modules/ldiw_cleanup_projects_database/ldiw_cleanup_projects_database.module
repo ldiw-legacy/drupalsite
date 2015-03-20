@@ -1,0 +1,3 @@
+<?php
+
+include_once('ldiw_cleanup_projects_database.features.inc');

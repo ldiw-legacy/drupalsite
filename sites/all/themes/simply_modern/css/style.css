@@ -1,0 +1,388 @@
+
+/** Font styles 
+---------------------------------*/
+
+body {
+  margin: 0;
+  /*
+   * Setting up font size, leading and font family
+   * http://www.markboulton.co.uk/journal/comments/five-simple-steps-to-better-typography
+   */
+  font: 13px/1.5em "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing:0.03em;
+  color: #333;
+}
+body.notrichtexteditor {
+  background: #AEB1A2 url(images/bg_pattern_brown.jpg) left top repeat;
+}
+
+/* Links */
+
+a:link, a:visited {
+  color: #6C8292;
+  text-decoration: none;
+}
+
+a:hover, a:active {
+  color: #6C8292;
+  text-decoration: underline;
+}
+
+/* Titles  */
+
+h1, h2, h3, h4, h5, h6 {
+  line-height:1.3em;
+  color: #334A5B;
+  font-family: Verdana, Helvetica, Arial, Sans-Serif;
+  letter-spacing: -1px;
+}
+
+h1 {
+	font-size: 2.2em;
+	font-weight: bold;
+	padding: 0 0 0.5em;
+	margin: 0;
+}
+
+h2 {
+  font-size: 1.8em;
+  font-weight: bold;
+  margin-bottom: 0.75em;
+}
+h3 {
+  font-size: 1.4em;
+  font-weight: bold;
+  margin-bottom: 0.3em;
+}
+h4 {
+  font-size: 1.2em;
+  font-style: italic;
+  margin-bottom: 0.3em;
+}
+h5 {
+  font-size: 1.1em;
+  font-weight: bold;
+  margin-bottom:0;
+}
+h6 {
+  font-size: 1em;
+  font-weight: bold;
+}
+
+/* Paragraph Styles */
+
+p {
+  margin:0 0 1em 0;
+}
+
+/* List Styles  */
+
+ul, ol {
+  margin-left: 0;
+  padding-left: 2em;
+}
+
+/* Table Styles  */
+
+table {
+	width: 99%;
+}
+tr.even td, tr.odd td {
+	padding: 10px 5px;
+}
+tr.odd {
+	background-color: #fff;
+}
+
+/* Code */
+
+pre, code, tt {font:1em 'andale mono', 'lucida console', monospace;line-height:1.5;}
+
+pre {
+	background-color: #efefef;
+	display: block;
+	padding: 5px;
+	margin: 5px 0;
+	border: 1px solid #aaa;
+}
+
+/* List Styles */
+
+ul          { list-style-type: disc; }
+ul ul       { list-style-type: circle; }
+ul ul ul    { list-style-type: square; }
+ul ul ul ul { list-style-type: circle; }
+ol          { list-style-type: decimal; }
+ol ol       { list-style-type: lower-alpha; }
+ol ol ol    { list-style-type: decimal; }
+
+/* Abbreviation */
+
+abbr {
+  border-bottom: 1px dotted #666;
+  cursor: help;
+  white-space: nowrap;
+}
+
+/* UI improvments  */
+
+#edit-title{
+	font-size: 24px;
+}
+#system-themes-form img{
+	width:100px;
+}
+.form-item .description{
+	font-style:italic;
+	line-height:1.2em;
+	font-size:0.8em;
+	margin-top:5px;
+	color:#777;
+}
+#edit-delete{
+	color:#c00;
+}
+
+/**
+ * Console, style from Slate theme
+ */
+div.messages {
+  padding: 9px;
+  margin: 1em 0;
+  color: #036;
+  background: #bdf;
+  border: 1px solid #ace;
+}
+div.warning {
+  color: #840;
+  background: #fe6;
+  border-color: #ed5;
+}
+div.error {
+  color: #fff;
+  background: #e63;
+  border-color: #d52;
+}
+div.status {
+  color: #360;
+  background: #cf8;
+  border-color: #be7;
+}
+
+/*leaderboard styles*/
+#leaderboard {
+  background: #020202;
+  color: #fff ;
+  padding: 10px 0;
+}
+#leaderboard h1, #leaderboard h2, #leaderboard h3, #leaderboard h4, #leaderboard h5, #leaderboard h6 {
+  color: #fff;
+}
+/*topbar styles*/
+#topbar {
+  background: #020202 url(images/top_gradient_dark.jpg) left top repeat-x;
+  color: #fff;
+}
+#topbar-inner {
+  background: #1C1C1C url(images/top_gradient_light.jpg) left top repeat-x;
+  height: 80px;
+}
+#primary-links {
+  float: right;
+  clear: right;
+  margin: 5px 20px 5px 5px;
+}
+#primary-links a {
+  color: #fff;
+}
+#search-theme-form {
+  float: right;
+  clear: right;
+  margin: 0px 20px 5px 5px;
+}
+#logo {
+  padding: 20px;
+}
+/*page styles*/
+
+#page {
+  background: #fff;
+}
+
+/*header styles*/
+
+#header {
+  background: #6C8292 url(images/header.gif) left top repeat-x;
+  color: #fff;
+  padding: 20px;
+}
+#name-and-slogan {
+  float: left;
+  margin: 0 20px;
+  position: relative;
+  z-index: 1;
+}
+#site-name {
+  padding-bottom: 5px;
+}
+#site-name a {
+  color: #fff;
+}
+#header-region {
+  margin-top: 10px;
+}
+/*navbar styles*/
+#nav {
+  background: #3f3f3f;
+  position: relative;
+  z-index: 1;
+}
+#nav a {
+  font-weight: 500;
+  font-size: 14px;
+  text-transform: uppercase;
+  padding: 10px;
+}
+#nav a:link, #nav a:visited {
+  color: #fff;
+  text-decoration: none;
+}
+
+#nav a:hover, #nav a:active {
+  color: #fff;
+  text-decoration: none;
+  background: #6C8292;
+}
+#nav li {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+/*suckerfish css styles*/
+
+#nav, #nav ul { /* all lists */
+	padding: 0 10px;
+	margin: 0;
+	list-style: none;
+	line-height: 1;
+}
+
+#nav a {
+	display: block;
+}
+
+#nav li { /* all list items */
+	float: left;
+}
+
+#nav li ul { /* second-level lists */
+	position: absolute;
+	background: #4c6374;
+	width: 200px;
+	left: -999em; /* using left instead of display to hide menus because display: none isn't read by screen readers */
+}
+#nav li li {
+  width: 200px;
+}
+#nav li li a {
+  width: 180px;
+  padding: 10px;
+}
+#nav li ul ul { /* third-and-above-level lists */
+	margin: -1em 0 0 10em;
+}
+
+#nav li:hover ul ul, #nav li.sfhover ul ul {
+	left: -999em;
+}
+
+#nav li:hover ul, #nav li li:hover ul, #nav li.sfhover ul, #nav li li.sfhover ul { /* lists nested under hovered list items */
+	left: auto;
+}
+
+/*secondary content*/
+#secondary-content {
+  
+}
+#secondary-content-inner {
+  padding: 0 20px 20px;
+}
+
+/*Main Content*/
+#main {
+  margin-top: 20px;
+}
+#content {
+  margin-bottom: 20px;
+}
+#content-inner {
+  padding: 0 20px;
+}
+#content-top {
+  margin-bottom: 20px;
+}
+#content-bottom {
+  margin-top: 20px;
+}
+/*Sidebars*/
+#sidebar-first-inner {
+  padding: 0 0 0 20px;
+}
+
+#sidebar-second-inner {
+  padding: 0 20px 0 0;
+}
+/*tertiary content*/
+#tertiary-content {
+  background-color: #1f1f1f;
+  color: #ccc;
+}
+#tertiary-content-inner {
+  padding: 20px;
+}
+#tertiary-content h1, #tertiary-content h2, #tertiary-content h3, #tertiary-content h4, #tertiary-content h5, #tertiary-content h6, #footer h1, #footer h2, #footer h3, #footer h4, #footer h5, #footer h6 {
+  color: #fff;
+}
+/*footer styles*/
+#footer {
+  background-color: #1f1f1f;
+  color: #ccc;
+  text-align: center;
+}
+#footer-inner {
+  padding: 20px 20px 60px;
+}
+/*Admin Page Styles*/
+#block-admin-configure input.form-text {
+  width: 415px;
+}
+/*edit menu styles*/
+.edit a {
+  background: none !important;
+  text-transform: lowercase !important;
+  font-size: 10px !important;
+  padding: 0 2px !important;
+  color: blue !important;
+}
+
+/*Skinr styles*/
+.width-15 {
+  width: 15%;
+  float: left;
+}
+.width-20 {
+  width: 20%;
+  float: left;
+}
+.width-25 {
+  width: 25%;
+  float: left;
+}
+.width-33 {
+  width: 33%;
+  float: left;
+}
+.width-50 {
+  width: 50%;
+  float: left;
+}

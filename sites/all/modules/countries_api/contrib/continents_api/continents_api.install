@@ -1,0 +1,52 @@
+<?php
+
+/**
+ * @file
+ * Install file for Continents API.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function continents_api_schema() {
+  $schema['continents_api_continents'] = array(
+    'description' => 'Mapping of continent codes to country codes.',
+    'fields' => array(
+      'continent' => array(
+        'description' => 'Continent code.',
+        'type'        => 'char',
+        'length'      => 2,
+        'not null'    => TRUE,
+      ),
+      'country' => array(
+        'description' => 'ISO 3166 alpha-2 country code.',
+        'type'        => 'char',
+        'length'      => 2,
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('continent', 'country'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function continents_api_install() {
+  // Create tables.
+  drupal_install_schema('continents_api');
+
+  // Include continents_api module include for initial data import.
+  require_once(dirname(__FILE__) .'/continents_api.module');
+  continents_api_csv_import_continents();
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function continents_api_uninstall() {
+  // Remove tables.
+  drupal_uninstall_schema('continents_api');
+}

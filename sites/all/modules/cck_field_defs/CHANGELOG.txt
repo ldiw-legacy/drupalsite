@@ -1,0 +1,29 @@
+
+CCK Field Definitions 6.x-1.x-dev
+---------------------------------
+#1090574 by LGLC: Show all fields whether they are in a fieldgroup or not.
+
+CCK Field Definitions 6.x-1.3
+-----------------------------
+Make configurable title translatable.
+Integrate allowed values with Content Taxonomy.
+Add option for displaying allowed values.
+Refactored the hook_menu implementation.
+
+CCK Field Definitions 6.x-1.2
+-----------------------------
+Changed default title from Data Dictionary to Field Definitions for consistency.
+Changed some translated strings in the description pages.
+Added Cancel button when changing a field definition.
+#969386 by rfay: Warnings from hook_help().
+
+CCK Field Definitions 6.x-1.1
+-----------------------------
+Cleaned up admin settings form code.
+#866390: Added documentation to the README file.
+
+CCK Field Definitions 6.x-1-0
+-----------------------------
+Fixed variable name for array that hold field data in non-fieldgroup content types.
+Cleaned up a bunch of things in the code, streamlined others, and added install hooks.
+Initial release for Drupal 6.x.

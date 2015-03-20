@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link type="text/css" rel="stylesheet" media="all" href="fileuploader.css">
+	<script src="/misc/jquery.js"></script>
+	<script src="fileuploader.js"></script>
+</head>
+<body>
+
+<div id="file-uploader">
+	<div class="qq-upload-button" id="file-uploader-button">Upload a file</div>
+</div>
+
+<script>
+jQuery(function()
+{
+	var uploader = new qq.FileUploaderBasic({
+        element: document.getElementById('file-uploader'),
+        button: document.getElementById('file-uploader-button'),
+		multiple: false,
+        action: '/?q=ldiw_waste_map/upload_photo_ajax',
+		onComplete: function(id, fileName, responseJSON){ alert('onComplete'); },
+		showMessage: function(message){ alert(message); }
+    }); 
+	});
+</script>
+
+</body>
+</html>

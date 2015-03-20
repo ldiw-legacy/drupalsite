@@ -1,0 +1,10 @@
+name = Country Icons
+description = A collection of country icons, and an API for retrieving them.
+package = Multilanguage
+core = 6.x
+; Information added by drupal.org packaging script on 2011-03-10
+version = "6.x-1.1"
+core = "6.x"
+project = "countryicons"
+datestamp = "1299789067"
+

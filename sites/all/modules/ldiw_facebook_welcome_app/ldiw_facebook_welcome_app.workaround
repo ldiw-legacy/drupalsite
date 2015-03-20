@@ -1,0 +1,718 @@
+<?php
+// $Id$
+
+DEFINE('LDIW_FACEBOOK_WELCOME_APP_INTRO_HTML',
+	'<fb:intl desc="Short and catchy intro for users from new countries">' .
+	'Do you like waste? Have you seen it in the streets or countryside? ' .
+	'We have a fun way to clean it with a few million people.' .
+	'</fb:intl>');
+
+function ldiw_facebook_welcome_app_get_facebook_page_url()
+{
+	return variable_get('ldiw_facebook_welcome_app_facebook_page_url',
+								'http://www.facebook.com/letsdoitworld');
+	}
+
+/***************************************************************************/
+/****************                                          *****************/
+/**************** ldiw_facebook_welcome_app_get_projects() *****************/
+/****************                                          *****************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_get_projects()
+{
+	$r=db_query(db_rewrite_sql(
+			"SELECT n.nid FROM {node} n WHERE n.type='cleanup_project'"));
+	$node_ids=array();
+	while ($row=db_fetch_array($r)) {
+		$node_ids[]=$row['nid'];
+		}
+
+	$projects=array();
+	foreach ($node_ids as $id) {
+		$n=node_load($id);
+		$project=array('country' => $n->field_country_code[0]['value']);
+		if (!empty($n->title)) {
+			$project['name']=$n->title;
+			}
+		foreach (array('region','nr_of_volunteers','url') as $fieldname) {
+			if (isset($n->{"field_$fieldname"}[0]['value'])) {
+				$project[$fieldname]=$n->{"field_$fieldname"}[0]['value'];
+				}
+			}
+		$projects[]=$project;
+		}
+
+	return $projects;
+	}
+
+/***************************************************************************/
+/************                                                   ************/
+/************ ldiw_facebook_welcome_app_planned_projects_html() ************/
+/************                                                   ************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_planned_projects_html($country_code)
+{
+	$countryinfo=geonames_countryinfo($country_code);
+	$country_name_html=htmlentities($countryinfo['name']);
+
+	$planned_projects=array();
+	foreach (ldiw_facebook_welcome_app_get_projects() as $project) {
+		if ($project['country'] == $country_code &&
+						!array_key_exists('nr_of_volunteers',$project) &&
+						(array_key_exists('url',$project) ||
+											!empty($project['name']))) {
+			array_push($planned_projects,$project);
+			}
+		}
+
+	if (!$planned_projects) {
+		return '';
+		}
+
+	sort($planned_projects);
+	$retval='';
+
+	if (count($planned_projects) > 1) {
+		$retval.='<fb:intl>You are from <b>{countryname}</b>, right? ' .
+			'There are currently some cleanups planned in {countryname}:' .
+			'<fb:intl-token name="countryname">' . $country_name_html .
+			'</fb:intl-token></fb:intl>';
+		}
+	else {
+		$retval.='<fb:intl>You are from <b>{countryname}</b>, right? ' .
+			'There is currently a cleanup planned in {countryname}:' .
+			'<fb:intl-token name="countryname">' . $country_name_html .
+			'</fb:intl-token></fb:intl>';
+		}
+
+	$retval.='<p><ul style="margin-left: 20px; padding-left: 20px;">';
+	foreach ($planned_projects as $project) {
+		$retval.='<li>';
+		$projectname=htmlentities($project['name'],ENT_COMPAT,'UTF-8');
+		if (isset($project['url'])) {
+			if (empty($projectname)) {
+				$projectname=htmlentities($project['url'],ENT_COMPAT,'UTF-8');
+				}
+			$projectname='<a href="' . htmlspecialchars($project['url']) .
+											'">' . $projectname . '</a>';
+			}
+		if (isset($project['region'])) {
+			$retval.='<fb:intl desc="One item in a list of projects in users country">{projectname} in {region}' .
+				'<fb:intl-token name="projectname">' . $projectname .
+				'</fb:intl-token>' .
+				'<fb:intl-token name="region">' .
+				htmlentities($project['region'],ENT_COMPAT,'UTF-8') .
+				'</fb:intl-token></fb:intl>';
+			}
+		else {
+			$retval.=$projectname;
+			}
+		$retval.="\n";
+		}
+	$retval.="</ul>\n";
+
+	return $retval;
+	}
+
+/***************************************************************************/
+/******************                                       ******************/
+/****************** ldiw_facebook_welcome_app_log_event() ******************/
+/******************                                       ******************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_context_hash()
+{
+	$value=crc32($_SERVER['HTTP_X_FB_USER_REMOTE_ADDR'] . '|' .
+				$_SERVER['HTTP_USER_AGENT'] . '|' .
+				$_POST['fb_sig_country'] . '|' .
+				$_POST['fb_sig_locale']);
+	// PHP docs incorrectly state the return value of crc32() is a signed int.
+	// On 64-bit Linux, the return value is unsigned. Convert it to signed:
+	$int_max=pow(2,31)-1;
+	if ($value > $int_max) {
+		$value-=$int_max*2;
+		$value-=2;
+		} 
+	return $value;
+	}
+
+function ldiw_facebook_welcome_app_log_event($event_type,$attrs=array())
+{
+	$attrs=array_merge(array('time' => gmdate('Y-m-d H:i:s e'),
+				'context_hash' => ldiw_facebook_welcome_app_context_hash(),
+				'country_code' => substr($_POST['fb_sig_country'],0,2),
+				'locale' => substr($_POST['fb_sig_locale'],0,8),
+				'event_type' => $event_type,
+				),$attrs);
+	drupal_write_record('ldiw_facebook_welcome_app_log',$attrs);
+	}
+
+/***************************************************************************/
+/***********                                                     ***********/
+/*********** ldiw_facebook_welcome_app_redirect_to_welcome_tab() ***********/
+/***********                                                     ***********/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_redirect_to_welcome_tab()
+{
+	print '<fb:redirect url="' . htmlentities(
+				ldiw_facebook_welcome_app_get_facebook_page_url()) . '" />';
+	}
+
+/***************************************************************************/
+/****************                                           ****************/
+/**************** ldiw_facebook_welcome_app_invite_accept() ****************/
+/****************                                           ****************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_invite_accept($facebook_uid)
+{
+	ldiw_facebook_welcome_app_log_event('invite_accept',array('facebook_uid' => $facebook_uid));
+	ldiw_facebook_welcome_app_redirect_to_welcome_tab();
+	exit();
+	}
+
+/***************************************************************************/
+/****************                                           ****************/
+/**************** ldiw_facebook_welcome_app_start_request() ****************/
+/****************                                           ****************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_start_request()
+{
+	$page_id=isset($_POST['fb_sig_profile_id']) ?
+					$_POST['fb_sig_profile_id'] : $_POST['fb_sig_profile'];
+	if ($page_id != '167901846562946' && $page_id != '110496952324003') {	//!!! Make configurable
+		ldiw_facebook_welcome_app_log_event('invalid');
+		ldiw_facebook_welcome_app_redirect_to_welcome_tab();
+		exit();
+		}
+
+	require_once 'lib/facebook.php';
+	$facebook=new Facebook('314582a2629fa11d6b4c3804de04aa58',	//!!! Hide these from github
+						'518c1ae92ae9f5db2a89e62836f22601');
+		// This may emit some cookies/headers
+
+	//!!! verify fb_sig signature
+
+	$language_countries=array(
+			'fr' => 'fr',
+			'et' => 'ee',
+			'da' => 'dk',
+			'sv' => 'se',
+			'it' => 'it',
+			'fi' => 'fi',
+			'pt' => 'pt',
+			'ru' => 'ru',
+			'nl' => 'nl',
+			'cs' => 'cz',
+			'lt' => 'lt',
+			'zh' => 'cn',
+			'el' => 'gr',
+			'hu' => 'hu',
+			'id' => 'id',
+			'ar' => 'sa',
+			'sk' => 'sk',
+			'vi' => 'vn',
+			'lv' => 'lv',
+			'pl' => 'pl',
+			'hr' => 'hr',
+			'tr' => 'tr',
+			'ca' => 'es',
+			'nb' => 'no',
+			'ko' => 'kr',
+			'ro' => 'ro',
+			'eu' => 'es',
+			'sl' => 'si',
+			'ja' => 'jp',
+			'bg' => 'bg',
+			'he' => 'il',
+			'gl' => 'es',
+			'ms' => 'my',
+			'is' => 'is',
+			'th' => 'th',
+			'nn' => 'no',
+			'sq' => 'al',
+			'uk' => 'ua',
+			'sr' => 'rs',
+			'hi' => 'in',
+			'af' => 'za',
+			'tl' => 'pi',
+			'ta' => 'in',
+			'te' => 'in',
+			'cy' => 'gb',
+			'ga' => 'ie',
+			'li' => 'nl',
+			'rm' => 'ch',
+			'jv' => 'id',
+			'bs' => 'ba',
+			'ka' => 'ge',
+			'mk' => 'mk',
+			'so' => 'so',
+			);
+
+	$language_code=substr($_POST['fb_sig_locale'],0,2);
+	if (array_key_exists($language_code,$language_countries)) {
+		$country_code=strtoupper($language_countries[$language_code]);
+		}
+	else {
+		$country_code=strtoupper($_POST['fb_sig_country']);
+		}
+
+	return array($facebook,$country_code);
+	}
+
+/***************************************************************************/
+/************                                                  *************/
+/************ ldiw_facebook_welcome_app_find_country_by_name() *************/
+/************                                                  *************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_find_country_by_name($name)
+{
+	$result=geonames_query('search',
+				array('name' => $name,
+							'featureclass' => 'a',
+							'featurecode' => array('PCL','PCLI','PCLD')),
+				array('columns' => array('countrycode')));
+	if (isset($result->results[0]['countrycode'])) {
+		return $result->results[0]['countrycode'];
+		}
+	return null;
+	}
+
+function ldiw_facebook_welcome_app_video($width,$height,$url_suffix='')
+{
+	?>
+	<fb:swf swfbgcolor="ffffff"
+		imgstyle="border-width:3px; border-color:black;"
+		swfsrc="http://www.youtube.com/v/A5GryIDl0qY<?php
+													print $url_suffix ;?>"
+		imgsrc="<?php print $GLOBALS['base_url'];
+			?>/sites/all/modules/ldiw_facebook_welcome_app/img/video.jpg"
+		width="<?php print $width; ?>" height="<?php print $height; ?>" />
+	<?php
+	}
+
+/***************************************************************************/
+/*******************                                     *******************/
+/******************* ldiw_facebook_welcome_app_welcome() *******************/
+/*******************                                     *******************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_welcome()
+{
+	list($facebook,$country_code)=
+								ldiw_facebook_welcome_app_start_request();
+	$is_duplicate=db_result(db_query(
+				"SELECT count(*) FROM {ldiw_facebook_welcome_app_log} " .
+					"WHERE event_type='welcome' AND context_hash=%d AND " .
+					"time > '%s'",
+				ldiw_facebook_welcome_app_context_hash(),
+				gmdate('Y-m-d H:i:s e',time()-5)));
+	if (!$is_duplicate) {
+		ldiw_facebook_welcome_app_log_event('welcome');
+		}
+	$php_script_url=$GLOBALS['base_url'] . '/ldiw_facebook_welcome_app/';
+
+	?>
+<link ref="stylesheet" type="text/css" href="<?php
+			print $GLOBALS['base_url'] .
+				'/sites/all/modules/ldiw_facebook_welcome_app/img//style.css';
+			?>" />
+<?php
+
+	$historical_project=NULL;
+	$historical_countries=array();
+	$historical_volunteers=0;
+	foreach (ldiw_facebook_welcome_app_get_projects() as $project) {
+		if (array_key_exists('nr_of_volunteers',$project)) {
+			$historical_countries[$project['country']]=1;
+			$historical_volunteers+=$project['nr_of_volunteers'];
+
+			if ($project['country'] == $country_code) {
+				$historical_project=$project;
+				}
+			}
+		}
+
+	if ($historical_project) {
+		?><div style="font-size: 18px">
+Remember <b><?php
+			print htmlentities($historical_project['name'],ENT_COMPAT,'UTF-8');
+			?></b>, where <?php print number_format(
+					$historical_project['nr_of_volunteers'],0,'.',' ');
+					?> volunteers cleaned up
+<?php
+				$countryinfo=geonames_countryinfo($country_code);
+				print htmlentities($countryinfo['name']); ?>?
+</div>
+<p>Similar cleanups have now happened in <?php
+						print count($historical_countries); ?> countries,
+with more than <b><?php print floor($historical_volunteers/1e6);
+									?> million volunteers</b> to date.
+We are an international team promoting it around the world,
+with the goal of having a massive <b>World Cleanup Day in 2012</b>.
+</p><?php
+		}
+	else {
+		?>
+		<div style="font-size: 18px">
+		<?php print LDIW_FACEBOOK_WELCOME_APP_INTRO_HTML; ?>
+		</div>
+		<p>
+		<fb:intl desc="Appears just before the video">
+		See how 250 000 people did it in Slovenia, 50 000 in Estonia, etc:
+		</fb:intl>
+		<div id="ldiw_video">
+		<?php print ldiw_facebook_welcome_app_video(317,252,'&autoplay=1'); ?>
+		</div>
+		<fb:js-string var="small_ldiw_video">
+		<?php print ldiw_facebook_welcome_app_video(159,126); ?>
+		</fb:js-string>
+		<p>
+		<fb:intl desc="Appears after general intro and video">
+		Similar large cleanups happened in Portugal, Romania, Latvia
+		and other countries.
+		</fb:intl>
+		<?php
+		}
+	?>
+<div id="ldiw_throbber" style="margin-left: auto; margin-right: auto; width: 10%"></div>
+<div id="contribute"><p>
+What do you think about it - LIKE it?
+<p><fb:comments xid="welcome_tab" numposts="0" canpost="false" candelete="false"
+	returnurl="<?php print htmlentities(
+				ldiw_facebook_welcome_app_get_facebook_page_url()); ?>" >
+<fb:title></fb:title></fb:comments><p>
+<?php print ldiw_facebook_welcome_app_planned_projects_html($country_code); ?>
+<p><form style="margin-top: 20px"></form>
+<div style="color: gray; display: none">
+(This will ask you for some profile information)
+</div></div><?php
+	exit();
+	}
+
+/***************************************************************************/
+/**************                                              ***************/
+/************** ldiw_facebook_welcome_app_actionitem_start() ***************/
+/**************                                              ***************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_actionitem_start($idx,$start_tag='h2')
+{
+	?>
+	<div style="display: block; width: 444px; background-color: #f7f7f7; margin: 10px; padding: 11px">
+	<?php
+	print '<' . $start_tag . ' style="font-size: 15px">';
+	print $idx . '.&nbsp;';
+	}
+
+/***************************************************************************/
+/*****************                                        ******************/
+/***************** ldiw_facebook_welcome_app_contribute() ******************/
+/*****************                                        ******************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_contribute()
+{
+	list($facebook,$country_code)=
+								ldiw_facebook_welcome_app_start_request();
+	$welcome_tab_url=ldiw_facebook_welcome_app_get_facebook_page_url() .
+									'?v=app_' . $_POST['fb_sig_app_id'];
+
+	$fql_results=array();
+	try {
+		$result=$facebook->api_client->call_method('facebook.fql.multiquery',
+			array('queries' => array(
+				'is_fan' => "SELECT page_id FROM page_fan " . 
+								"WHERE uid=me() AND page_id='$page_id'",
+				'profile' => "SELECT uid,current_location FROM user " .
+														"WHERE uid=me()",
+				'friend_locations' =>
+						"SELECT current_location,uid,is_app_user " .
+							"FROM user WHERE uid IN (" .
+								"SELECT uid2 FROM friend WHERE uid1=me())",
+						//!!! exclude friends using page_fan table
+				)));
+
+		foreach ($result as $res) {
+			$result_set=$res['fql_result_set'];
+			if (!$result_set) {
+				$result_set=array();
+				}
+			$fql_results[$res['name']]=$result_set;
+			}
+		} catch (FacebookRestClientException $e) {
+			if ($e->getCode() != 102 /* Requires user session */) {
+				ldiw_facebook_welcome_app_log_event('contribute');
+				throw $e;
+				}
+			$fql_results['is_fan']=array();
+			$fql_results['friend_locations']=array();
+			$fql_results['profile']=array();
+			}
+
+	$event_attrs=array();
+	if (isset($fql_results['profile'][0]['uid'])) {
+		$event_attrs['facebook_uid']=$fql_results['profile'][0]['uid'];
+		}
+	if (isset($fql_results['profile'][0]['current_location'])) {
+		$location=$fql_results['profile'][0]['current_location'];
+		if (isset($location['country'])) {
+			$event_attrs['profile_country']=$location['country'];
+			}
+		if (isset($location['city'])) {
+			$event_attrs['profile_city']=$location['city'];
+			}
+		if (isset($location['zip'])) {
+			$event_attrs['profile_zipcode']=$location['zip'];
+			}
+		}
+	ldiw_facebook_welcome_app_log_event('contribute',$event_attrs);
+
+	//!!! Log likes
+
+	$next_todo_list_index=1;
+	if (!$fql_results['is_fan'] && 0/*!!!*/) {
+		ldiw_facebook_welcome_app_actionitem_start($next_todo_list_index++);
+		?>
+<fb:intl>"Like"&nbsp;us. This causes more people to see us.</fb:intl></h2>
+<p>
+<fb:comments xid="welcome_tab" returnurl="<?php print htmlentities(
+					ldiw_facebook_welcome_app_get_facebook_page_url());
+					?>" numposts="0" canpost="false" candelete="false">
+<fb:title></fb:title>
+</fb:comments>
+</div>
+		<?php
+		}
+
+	$my_location=null;
+	if (isset($fql_results['profile'][0]['current_location']['country'])) {
+		$my_location=$fql_results['profile'][0]['current_location'];
+
+		$location_country_code=
+					ldiw_facebook_welcome_app_find_country_by_name(
+												$my_location['country']);
+		if ($location_country_code) {
+			$country_code=$location_country_code;
+			}
+		}
+
+	$text=ldiw_facebook_welcome_app_planned_projects_html($country_code);
+	if ($text) {
+		ldiw_facebook_welcome_app_actionitem_start($next_todo_list_index++,
+																	'b');
+		?>
+</b><?php print $text; ?>
+<p>
+<fb:intl>Believe me, you don't want to miss it! Visit their website and see how YOU can help.</fb:intl>
+</div>
+		<?php
+		}
+
+	$countries_with_projects=array();
+	foreach (ldiw_facebook_welcome_app_get_projects() as $project) {
+		$countries_with_projects[$project['country']]=1;
+		}
+
+	if (isset($countries_with_projects[$country_code]) || !$my_location) {
+		$have_friends_to_invite=false;
+		$friends_to_exclude=array();
+		foreach ($fql_results['friend_locations'] as $entry) {
+			$friend_country=ldiw_facebook_welcome_app_find_country_by_name(
+									$entry['current_location']['country']);
+			if ($friend_country &&
+						!isset($countries_with_projects[$friend_country]) &&
+						!$entry['is_app_user']) {
+				$have_friends_to_invite=true;
+				}
+			else {
+				array_push($friends_to_exclude,$entry['uid']);
+				}
+			}
+
+		if ($have_friends_to_invite) {
+			?>
+<fb:request-form invite="true" content=""
+	action="<?php print htmlentities($welcome_tab_url); ?>" >
+
+<fb:fbml-attribute name="type">
+	<fb:intl>World Cleanup</fb:intl>
+</fb:fbml-attribute>
+
+<fb:fbml-attribute name="content">
+	<?php print LDIW_FACEBOOK_WELCOME_APP_INTRO_HTML; ?>
+	&lt;fb:req-choice url=&quot;http://apps.facebook.com/world_cleanup/_invite_accept/<?php
+		if (isset($fql_results['profile'][0]['uid'])) {
+			print $fql_results['profile'][0]['uid'];
+			}
+		?>&quot; label=&quot;Accept&quot; /&gt;
+</fb:fbml-attribute>
+
+<fb:multi-friend-selector cols="3" rows="3" showborder="false" bypass="cancel"
+	email_invite="false" import_external_friends="false"
+	exclude_ids="<?php print implode(',',$friends_to_exclude); ?>" >
+<fb:fbml-attribute name="actiontext">
+	<?php print $next_todo_list_index++; ?>.
+	<fb:intl>Invite your international friends to clean their countries!</fb:intl>
+</fb:fbml-attribute>
+</fb:multi-friend-selector>
+
+</fb:request-form>
+			<?php
+			}
+
+		ldiw_facebook_welcome_app_actionitem_start($next_todo_list_index++);
+		?>
+<fb:intl>Join the
+<a href="http://www.letsdoitworld.org/contact/international-team">international team</a>
+as a volunteer.</h2>
+<p>
+We need a variety of skills, from organizing conferences to
+computer programming.
+</fb:intl>
+</div>
+		<?php
+		}
+	else {
+		ldiw_facebook_welcome_app_actionitem_start($next_todo_list_index++);
+		?>
+<fb:intl>Read our
+<a href="http://www.letsdoitworld.org/manual">Country Cleaning Manual</a>
+to learn how you can organize a similar cleanup in {countryname}!
+<fb:intl-token name="countryname"><?php
+			$countryinfo=geonames_countryinfo($country_code);
+			print htmlentities($countryinfo['name']); ?></fb:intl-token>
+</fb:intl>
+</h2>
+</div>
+		<?php
+/*!!!
+4 people in Munich, Germany are interested in meeting each other to discuss
+how you can together organize a cleanup in your area. The meeting will
+happen once we have 10 people in Munich, Germany. If you are interested
+as well, <click here> and we'll email you when the meeting happens.
+*/
+		}
+	exit();
+	}
+
+/***************************************************************************/
+/******************                                      *******************/
+/****************** ldiw_facebook_welcome_app_throbber() *******************/
+/******************                                      *******************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_throbber()
+{
+	print '<p><img src="' . $GLOBALS['base_url'] .
+			'/sites/all/modules/ldiw_facebook_welcome_app/img/throbber.gif">';
+	exit();
+	}
+
+/***************************************************************************/
+/***************************                     ***************************/
+/*************************** Admin settings page ***************************/
+/***************************                     ***************************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_admin_settings()
+{
+	$form=array(
+		'ldiw_facebook_welcome_app_facebook_page_url' => array(
+				'#type' => 'textfield',
+				'#title' =>
+					t('URL of Facebook Page where the app is attached to'),
+				'#default_value' =>
+						ldiw_facebook_welcome_app_get_facebook_page_url(),
+				'#size' => 60,
+				'#maxlength' => 1000,
+				'#required' => TRUE,
+				),
+		);
+	return system_settings_form($form);
+	}
+
+/***************************************************************************/
+/***************                                            ****************/
+/*************** ldiw_facebook_welcome_app_privacy_policy() ****************/
+/***************                                            ****************/
+/***************************************************************************/
+
+function ldiw_facebook_welcome_app_privacy_policy()
+{
+	return <<<EOT
+This is the privacy policy of www.letsdoitworld.org Facebook
+Page/Application.
+
+<ul>
+<li>In order to personalize information presented to you, our Facebook
+Page/Application may ask you for access to your personal profile
+information on Facebook. You will always have an option to not
+grant such access.
+
+<li>We will not show, give, transfer, or sell that profile information
+to any other person or organization.
+</ul>
+EOT;
+	}
+
+/**
+ * Implementation of hook_views_api()
+ */
+function ldiw_facebook_welcome_app_views_api()
+{
+	return array('api' => 2);
+	}
+
+/**
+ * Implementation of hook_menu()
+ */
+
+function ldiw_facebook_welcome_app_menu()
+{
+	return array(
+		'ldiw_facebook_welcome_app' => array(
+			'page callback' => 'ldiw_facebook_welcome_app_welcome',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_facebook_welcome_app/contribute.fbml' => array(
+			'page callback' => 'ldiw_facebook_welcome_app_contribute',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_facebook_welcome_app/throbber.fbml' => array(
+			'page callback' => 'ldiw_facebook_welcome_app_throbber',
+			'access callback' => TRUE,
+			'type' => MENU_CALLBACK,
+			),
+		'ldiw_facebook_welcome_app_invite_accept/%' => array(
+			'page callback' => 'ldiw_facebook_welcome_app_invite_accept',
+			'access callback' => TRUE,
+			'page arguments' => array(1),
+			'type' => MENU_CALLBACK,
+			),
+
+		// Admin page
+		'admin/settings/ldiw_facebook_welcome_app' => array(
+			'title' => 'LDIW Facebook Welcome app',
+			'description' => 'Configure the LDIW Facebook Welcome app.',
+			'page callback' => 'drupal_get_form',
+			'page arguments' =>
+						array('ldiw_facebook_welcome_app_admin_settings'),
+			'access arguments' => array('administer site configuration'),
+			),
+
+		// Privacy policy
+		'ldiw_facebook_welcome_app/privacy-policy.html' => array(
+			'title' => 'Privacy Policy',
+			'page callback' => 'ldiw_facebook_welcome_app_privacy_policy',
+			'access arguments' => array('access content'),
+			),
+		);
+	}

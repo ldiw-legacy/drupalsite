@@ -1,0 +1,363 @@
+<?php
+
+/**
+ * Implementation of hook_help().
+ */
+function cck_field_defs_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case 'admin/help#cck_field_defs':
+      $output .= '<p>' . t('The purpose of this module is to present the user a list of all the fields with their descriptions from a particular CCK content type.') . '</p>' .
+        '<p>' . t('This works especially well for forms that are very long, with hundreds of fields, so that users can see at a glance the form in detail.') . '</p>' .
+        '<p>' . t('Users with the proper permissions are able to change the field labels or descriptions from within the dictionary itself without having to access the content type settings.') . '</p>';
+      return $output;
+    case 'admin/modules#description':
+      return t('Allows the user to view or change CCK field definitions from outside of CCK.');
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function cck_field_defs_perm() {
+  return array('administer cck field defs', 'view definitions', 'edit definitions');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function cck_field_defs_menu() {
+  $items = array();
+  // No arguments: list all content types with definitions.
+  $items['field_defs'] = array(
+    'title' => variable_get('cck_field_defs_title', t('Field definitions')),
+    'page callback' => 'cck_field_defs_page',
+    'access arguments' => array('view definitions'),
+  );
+  // Administrative settings
+  $items['admin/settings/cck_field_defs'] = array(
+    'title' => variable_get('cck_field_defs_title', t('Field definitions')),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cck_field_defs_settings_form'),
+    'access arguments' => array('administer cck field defs'),
+    'description' => 'Allows the user to configure different options for the definitions on a dictionary page.',
+  );
+  // Two arguments: change definition for a particular field.
+  $items['field_defs/%/%'] = array(
+    'title' => variable_get('cck_field_defs_title', t('Field definitions')),
+    'page callback' => 'cck_field_defs_page',
+    'page arguments' => array(1, 2),
+    'access arguments' => array('edit definitions'),
+    'type' => MENU_CALLBACK,
+  );
+  // One argument: definitions for a particular content type.
+  $items['field_defs/%'] = array(
+    'title' => variable_get('cck_field_defs_title', t('Field definitions')),
+    'page callback' => 'cck_field_defs_page',
+    'page arguments' => array(1),
+    'access arguments' => array('view definitions'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_alter() for node_type_form.
+ *
+ * Allow users with administer nodes permissions to enable/disable definitions
+ * for particular content types.
+ */
+function cck_field_defs_form_node_type_form_alter(&$form, &$form_state) {
+  if (isset($form['identity']['type'])) {
+    $options = array('disabled' => t('Disabled'), 'enabled' => t('Enabled'));
+    $form['cck_field_defs'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Field definitions'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+      '#weight' => 2,
+      '#access' => user_access('administer cck field defs'),
+    );
+    $form['cck_field_defs']['cck_field_defs_expose'] = array(
+      '#type' => 'radios',
+      '#title' => t('Enable viewing and editing of field definitions.'),
+      '#default_value' => variable_get('cck_field_defs_expose_' . $form['#node_type']->type, 'disabled'),
+      '#options' => $options,
+      '#description' => t('Enable this option to allow users to view a dictionary of field definitions and modify it if allowed.'),
+    );
+  }
+}
+
+/**
+ * Presents the definitions page. The output changes based on the arguments as
+ * specified on the above menu section.
+ */
+function cck_field_defs_page($type = '', $field = '') {
+  if ($type != '') {
+    $op = variable_get('cck_field_defs_expose_' . $type, 'disabled');
+    // Return if no definitions set for this content type.
+    if ($op == 'disabled' || is_null($op)) {
+      return drupal_not_found();
+    }
+  }
+  $content_type = content_types($type);
+  drupal_add_css(drupal_get_path('module', 'cck_field_defs') . '/cck_field_defs.css');
+  drupal_set_title(t('!definitions for %type', array('!definitions' => variable_get('cck_field_defs_title', t('Field definitions')), '%type' => $content_type['name'])));
+  if ($field != '' && user_access('edit definitions')) {
+    // Call form for editing a field definition.
+    return drupal_get_form('cck_fields_defs_field_edit_form');
+  }
+  elseif ($type != '' && (user_access('view definitions') || user_access('edit definitions'))) {
+    $result = NULL;
+    $groups = array();
+    $uses_fieldgroup = FALSE;
+    if (module_exists('fieldgroup')) {
+      module_load_include('module', 'fieldgroup', 'fieldgroup');
+      $groups = fieldgroup_groups($type, TRUE);
+      if (count($groups) > 0) {
+        $uses_fieldgroup = TRUE;
+      }
+    }
+    // If content type uses fieldgroup, present the definitions by group.
+    if ($uses_fieldgroup) {
+      $group_list = array();
+      $already_created = array();
+      // Get each group
+      foreach ($groups as $group) {
+        // Get all the fields from each group.
+        foreach ($group['fields'] as $term) {
+          $term = $term['field_name'];
+          // Store the term's group so we can look it up later
+          $group_list[$term] = $group;
+        }
+      }
+    }
+    // If content type doesn't use fieldgroups, just present all the fields in order.
+    $content_types = content_types($type);
+    $field_list = array();
+    if (is_array($content_types['fields'])) {
+      foreach ($content_types['fields'] as $term) {
+        // Check to see if it's in a group.  If it is, put it in the appropriate group.
+        if ($uses_fieldgroup && $group = $group_list[$term['field_name']]) {
+          // If the group hasn't been added yet, add it.
+          if (!isset($already_created[$group['group_name']])) {
+            $field_list[$group['group_name']] = array(
+            '#type' => 'fieldset',
+            '#title' => check_plain($group['label']),
+            '#collapsible' => TRUE,
+            '#collapsed' => ((variable_get('cck_field_defs_collapse', 1) == 0) ? FALSE : TRUE),
+            '#weight' => $group['weight'],
+            );
+            $already_created[$group['group_name']] = TRUE;
+          }
+        }
+        $description = $term['widget']['description'];
+        if (variable_get('cck_field_defs_show_values', 0)) {
+          $allowed_values = content_allowed_values($term);
+          if (!empty($allowed_values)) {
+            $description .= theme_item_list($allowed_values);
+          }
+          // Add support for Content Taxonomy Options
+          if ($term['widget']['module'] == 'content_taxonomy_options' && module_exists('content_taxonomy_options')) {
+            $allowed_values = content_taxonomy_allowed_values($term);
+            $taxonomy_terms = array();
+            foreach ($allowed_values as $tid => $taxonomy_term) {
+              $taxonomy_term = taxonomy_get_term($tid);
+              if (is_object($taxonomy_term)) {
+                $taxonomy_terms[$taxonomy_term->weight . $taxonomy_term->tid] = $taxonomy_term->name . ': ' . $taxonomy_term->description;
+              }
+            }
+            $description .= theme_item_list($taxonomy_terms);
+          }
+        }
+        // If the field is in a group, put it in the group
+        if ($uses_fieldgroup && $group = $group_list[$term['field_name']]) {
+          $field_list[$group['group_name']][$term['field_name']] = array(
+            '#type' => 'item',
+            '#title' => check_plain($term['widget']['label']) . (user_access('edit definitions') ? '&nbsp;' . l('[change]', arg(0) . '/' . $type . '/' . $term['field_name'], array('attributes' => array('class' => 'defs-edit-link'))) : ''),
+            '#description' => check_markup($description, FILTER_HTML_ESCAPE, FALSE),
+            '#weight' => $term['widget']['weight'],
+          );
+        }
+        // Otherwise just use the normal field
+        else {
+          $field_list[$term['field_name']] = array(
+            '#type' => 'item',
+            '#title' => check_plain($term['widget']['label']) . (user_access('edit definitions') ? '&nbsp;' . l('[change]', arg(0) . '/' . $type . '/' . $term['field_name'], array('attributes' => array('class' => 'defs-edit-link'))) : ''),
+            '#description' => check_markup($description, FILTER_HTML_ESCAPE, FALSE),
+            '#weight' => $term['widget']['weight'],
+          );
+        }
+      }
+    }
+    else {
+      drupal_set_message(t('Please add fields to this content type.'), 'error');
+      drupal_goto('admin/content/node-type/' . $type . '/fields');
+    }
+    return drupal_render($field_list);
+  }
+  elseif ($type == '' && (user_access('view definitions') || user_access('edit definitions'))) {
+    $output = array();
+    $content_types = content_types();
+    // Display a list of content types that have definitions set.
+    foreach ($content_types as $content_type) {
+      if (variable_get('cck_field_defs_expose_' . $content_type['type'], 'disabled') == 'enabled') {
+        $output[$content_type['type']] = array(
+          '#type' => 'item',
+          '#title' => l($content_type['name'], arg(0) . '/' . $content_type['type']),
+          '#description' => check_markup($content_type['description'] . ' (<em>' . count($content_type['fields']) . ' fields</em>)', FILTER_HTML_ESCAPE, FALSE),
+        );
+      }
+    }
+    if (empty($output) == TRUE) {
+      drupal_set_message(t('Please enable field definitions for each content type you want to use it for.'), 'error');
+      drupal_goto('admin/content/types');
+    }
+    return drupal_render($output);
+  }
+  else {
+    drupal_access_denied();
+  }
+}
+
+/**
+ * Creates the form used for updating the field definition.
+ */
+function cck_fields_defs_field_edit_form(&$form_state) {
+  $type = '';
+  $field = '';
+  if (arg(0) == 'field_defs' && !is_null(arg(1)) && !is_null(arg(2))) {
+    $type = arg(1);
+    $field = arg(2);
+  }
+  else {
+    return;
+  }
+
+  $info = content_fields($field, $type);
+  drupal_set_title(t('!definitions for %field', array('!definitions' => variable_get('cck_field_defs_title', t('Field definitions')), '%field' => $info['widget']['label'])));
+
+  $form = array();
+  $form['cck_field_defs']['field_label'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Field Label'),
+    '#default_value' => $info['widget']['label'],
+    '#description' => t('Enter the label for this field.'),
+    '#weight' => -1,
+    '#access' => ((variable_get('cck_field_defs_label', 0) == 0) ? FALSE : TRUE),
+  );
+  $form['cck_field_defs']['field_description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Field Definition'),
+    '#default_value' => $info['widget']['description'],
+    '#description' => t('Enter the description/definition for this field.'),
+    '#weight' => 0,
+    '#access' => ((variable_get('cck_field_defs_desc', 0) == 0) ? FALSE : TRUE),
+  );
+  $form['cck_field_defs']['field_submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#weight' => 1,
+    '#submit' => array('cck_fields_defs_field_edit_form_submit'),
+  );
+  $form['cck_field_defs']['cancel'] = array(
+    '#type' => 'markup',
+    '#value' => l(t('Cancel'), 'field_defs/' . $type),
+    '#weight' => 2,
+  );
+  $form['cck_field_defs']['field_type'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $type,
+  );
+  $form['cck_field_defs']['field_name'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $field,
+  );
+  return $form;
+}
+
+/**
+ * Submits the form used for updating the field definition.
+ */
+function cck_fields_defs_field_edit_form_submit($form, &$form_state) {
+  db_query("UPDATE {content_node_field_instance} SET label = '%s', description = '%s' WHERE type_name = '%s' AND field_name = '%s'", $form_state['values']['field_label'], $form_state['values']['field_description'], $form_state['values']['field_type'], $form_state['values']['field_name']);
+
+  // Clear cache to reflect the definition change immediately.
+  module_load_include('module', 'content', 'content');
+  content_clear_type_cache();
+
+  drupal_set_message(t('Definition for %field updated successfully.', array('%field' => $form_state['values']['field_label'])));
+  drupal_goto('field_defs/' . $form_state['values']['field_type']);
+}
+
+/**
+ * Creates the form used for admin settings.
+ */
+function cck_field_defs_settings_form(&$form_state) {
+  drupal_set_message(t("Changing the title will disable their translation via Drupal's language system. Use the reset button to return it to the original state."), 'warning');
+  $form = array();
+  $form['cck_field_defs_help'] = array(
+    '#type' => 'markup',
+    '#prefix' => '<p>',
+    '#value' => t('!title can be found !link', array('!title' => variable_get('cck_field_defs_title', t('Field definitions')), '!link' => l('here', 'field_defs'))),
+    '#suffix' => '</p>',
+    '#weight' => -10,
+  );
+  $form['cck_field_defs_title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title for definitions page'),
+    '#default_value' => variable_get('cck_field_defs_title', t('Field definitions')),
+    '#description' => t('This is the title shown on the page that contains the list of all the fields with their definitions.'),
+    '#required' => TRUE,
+    '#weight' => -9,
+  );
+  $form['cck_field_defs_label'] = array(
+    '#type' => 'radios',
+    '#title' => t('Allow labels to be changed?'),
+    '#options' => array(
+      1 => t('Yes'),
+      0 => t('No'),
+    ),
+    '#default_value' => variable_get('cck_field_defs_label', 0),
+    '#description' => t('Note: changing the label does not change the internal field name. Using this to change the purpose of the field might make old data irrelevant.'),
+    '#required' => TRUE,
+    '#weight' => -8,
+  );
+  $form['cck_field_defs_desc'] = array(
+    '#type' => 'radios',
+    '#title' => t('Allow descriptions to be changed?'),
+    '#options' => array(
+      1 => t('Yes'),
+      0 => t('No'),
+    ),
+    '#default_value' => variable_get('cck_field_defs_desc', 1),
+    '#description' => t('This is the description of the field. You probably want to leave this on if you have field descriptions that change frequently.'),
+    '#required' => TRUE,
+    '#weight' => -7,
+  );
+  $form['cck_field_defs_collapse'] = array(
+    '#type' => 'radios',
+    '#title' => t('Should field groups be collapsed by default?'),
+    '#options' => array(
+      1 => t('Yes'),
+      0 => t('No'),
+    ),
+    '#default_value' => variable_get('cck_field_defs_collapse', 1),
+    '#description' => t('In case of a content type using field groups, would you want them to be collapsed by default on the definitions page? Note: this would be a good thing to have if the amount of fields is too long and you have many field groups.'),
+    '#required' => TRUE,
+    '#weight' => -6,
+  );
+  $form['cck_field_defs_show_values'] = array(
+    '#type' => 'radios',
+    '#title' => t('Display allowed values?'),
+    '#options' => array(
+      1 => t('Yes'),
+      0 => t('No'),
+    ),
+    '#default_value' => variable_get('cck_field_defs_show_values', 0),
+    '#description' => t('Enable this to display allowed values along with the definitions.'),
+    '#required' => TRUE,
+    '#weight' => -5,
+  );
+  return system_settings_form($form);
+}

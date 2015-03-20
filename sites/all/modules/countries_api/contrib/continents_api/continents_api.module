@@ -1,0 +1,78 @@
+<?php
+
+/**
+ * @file
+ * Continents API provides an API for official and up-to-date list of
+ * continents and their countries. Countries are provided in ISO 3166 alpha-2
+ * country codes.
+ * Source: http://en.wikipedia.org/wiki/List_of_countries_by_continent_(data_file)
+ */
+
+
+/**
+ * Get all continents.
+ *
+ * @return
+ *   An array of (continent code, continent name) pairs.
+ */
+function continents_api_get_continents() {
+  return array(
+    'AF' => t('Africa'),
+    'AS' => t('Asia'),
+    'EU' => t('Europe'),
+    'NA' => t('North America'),
+    'SA' => t('South America'),
+    'OC' => t('Oceania'),
+    'AN' => t('Antarctica'),
+  );
+}
+
+/**
+ * Function to get a region by iso2 country name
+ *
+ * @param $continent_code
+ *   A continent code. E.g. 'EU' for Europe.
+ * @return
+ *   A list of countries in the given continent. In ISO-2 format. Use the
+ *   countries_api module to convert to other country representations.
+ *   Returns NULL in case of an invalid continent code.
+ */
+function continents_api_get_countries($continent_code) {
+  // Validate the continent code.
+  $valid_continent_codes = array_keys(continents_api_get_continents());
+  if (!in_array($continent_code, $valid_continent_codes)) {
+    return NULL;
+  }
+
+  // Look up the countries for the given continent.
+  $result = db_query("SELECT country FROM {continents_api_continents} WHERE continent = '%s'", $continent_code);
+  $continents = array();
+  while ($row = db_fetch_object($result)) {
+    $countries[] = $row->country;
+  }
+  return $countries;
+}
+
+/**
+ * Function to import regions from CSV file
+ * TODO: provide arguments for specifying csv files
+ * TODO: Setup permissions
+ *
+ * @param $offset
+ *   Integer value for CSV row offset.
+ */
+function continents_api_csv_import_continents($offset = 1) {
+  $handle = fopen(drupal_get_path('module', 'continents_api') .'/data/continents.csv', 'r');
+  $index = 1;
+  while (($row = fgetcsv($handle, 1024, ",")) !== FALSE) {
+    if ($index > $offset) {
+      // Create row variables.
+      $continent = ($row[0]) ? $row[0] : "";
+      $country   = ($row[1]) ? $row[1] : "";
+      db_query("INSERT INTO {continents_api_continents} (continent, country) VALUES('%s', '%s')", $continent, $country);
+    }
+    $index++;
+  }
+  fclose($handle);
+  watchdog('continents_api', 'Pre-populated continents data.');
+}
